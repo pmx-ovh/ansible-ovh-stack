@@ -1,0 +1,34 @@
+# Fichier généré par Ansible – Proxmox bridges OVH 1IP
+# On suppose que {{ wan_public_iface }} (vmbr0) est déjà configuré avec l'IP publique OVH
+
+
+auto lo
+iface lo inet loopback
+
+
+# === WAN public (existant) ===
+# vmbr0 avec IP publique OVH sur l'hôte Proxmox (NE PAS MODIFIER ICI si déjà OK)
+# iface {{ wan_public_iface }} inet static
+# address {{ ovh_public_ip }}
+# netmask 255.255.255.255
+# gateway YOUR_OVH_GATEWAY
+# bridge_ports YOUR_WAN_NIC
+# bridge_stp off
+# bridge_fd 0
+
+
+# === Bridge privé entre Proxmox et OPNsense (WAN privé OPNsense) ===
+auto {{ opnsense_wan_bridge }}
+iface {{ opnsense_wan_bridge }} inet static
+address {{ proxmox_wan_bridge_ip }}/24
+bridge_ports none
+bridge_stp off
+bridge_fd 0
+
+
+# === Bridge LAN interne derrière OPNsense ===
+auto {{ lan_bridge }}
+iface {{ lan_bridge }} inet manual
+bridge_ports none
+bridge_stp off
+bridge_fd 0

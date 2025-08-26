@@ -1,0 +1,25 @@
+# Fichier généré par Ansible — Règles IPv4 persistantes                         # commentaire: en-tête informatif
+
+*filter                                                                           # commentaire: table de filtrage
+:INPUT ACCEPT [0:0]                                                                # commentaire: politique INPUT permissive (à durcir si besoin)
+:FORWARD DROP [0:0]                                                                # commentaire: on DROP par défaut en forward
+:OUTPUT ACCEPT [0:0]                                                               # commentaire: politique OUTPUT permissive
+
+# Autoriser le forward du réseau OPNsense (vmbr1) vers Internet (vmbr0)           # commentaire: sortie LAN -> WAN
+-A FORWARD -i {{ opnsense_wan_bridge }} -o {{ wan_public_iface }} -j ACCEPT        # commentaire: accepte tout trafic sortant
+
+# Autoriser uniquement le trafic de retour depuis Internet vers OPNsense          # commentaire: retour sécurisé
+-A FORWARD -i {{ wan_public_iface }} -o {{ opnsense_wan_bridge }} -m state --state RELATED,ESTABLISHED -j ACCEPT  # commentaire: réponses uniquement
+
+COMMIT                                                                             # commentaire: fin de la table filter
+
+*nat                                                                               # commentaire: table NAT
+:PREROUTING ACCEPT [0:0]                                                           # commentaire: politique PREROUTING
+:INPUT ACCEPT [0:0]                                                                # commentaire: politique INPUT (nat)
+:OUTPUT ACCEPT [0:0]                                                               # commentaire: politique OUTPUT (nat)
+:POSTROUTING ACCEPT [0:0]                                                          # commentaire: politique POSTROUTING
+
+# MASQUERADE : 192.168.1.0/24 (vmbr1) -> IP publique via vmbr0                    # commentaire: NAT source
+-A POSTROUTING -s {{ opnsense_wan_cidr }} -o {{ wan_public_iface }} -j MASQUERADE  # commentaire: règle clé pour OVH 1 IP
+
+COMMIT                                                                             # commentaire: fin de la table nat

@@ -1,0 +1,31 @@
+# HAProxy minimal pour relayer vers Traefik (L4/L7)                    # commentaire: en-tête
+
+global                                                                 # commentaire: section globale
+    log /dev/log    local0                                            # commentaire: log facility
+    log /dev/log    local1 notice                                     # commentaire: second canal
+    daemon                                                             # commentaire: mode démon
+
+defaults                                                               # commentaire: valeurs par défaut
+    log     global                                                     # commentaire: utilise la conf globale
+    mode    http                                                       # commentaire: mode HTTP par défaut
+    option  httplog                                                    # commentaire: format de log HTTP
+    option  dontlognull                                                # commentaire: pas de log pour connexions vides
+    timeout connect 5s                                                 # commentaire: timeout connexion backend
+    timeout client  50s                                                # commentaire: timeout client
+    timeout server  50s                                                # commentaire: timeout serveur
+
+frontend fe_http                                                       # commentaire: frontend HTTP
+    bind *:{{ haproxy_front_http_port }}                               # commentaire: écoute sur port HTTP
+    default_backend be_traefik_http                                    # commentaire: backend par défaut
+
+backend be_traefik_http                                                # commentaire: backend HTTP vers Traefik
+    server traefik {{ services_vm_ip }}:{{ haproxy_back_traefik_http }} check  # commentaire: serveur backend (VM services)
+
+frontend fe_https                                                      # commentaire: frontend HTTPS (TCP)
+    bind *:{{ haproxy_front_https_port }}                              # commentaire: écoute sur 443
+    mode tcp                                                           # commentaire: mode TCP pour passthrough TLS
+    default_backend be_traefik_https                                   # commentaire: backend TLS
+
+backend be_traefik_https                                               # commentaire: backend TLS vers Traefik
+    mode tcp                                                           # commentaire: reste en TCP
+    server traefik {{ services_vm_ip }}:{{ haproxy_back_traefik_https }} check # commentaire: serveur backend (VM services)

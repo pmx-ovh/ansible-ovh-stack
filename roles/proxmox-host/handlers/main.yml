@@ -1,0 +1,9 @@
+# Handlers déclenchés par le rôle proxmox-host                         # commentaire: actions différées
+
+- name: restart networking                                             # commentaire: redémarre le service réseau Debian
+  ansible.builtin.service:
+    name: networking                                                  # commentaire: nom du service
+    state: restarted                                                  # commentaire: état voulu
+
+- name: reload iptables persistent                                     # commentaire: recharge netfilter-persistent
+  ansible.builtin.command: netfilter-persistent reload                # commentaire: applique /etc/iptables/rules.v4

@@ -1,0 +1,45 @@
+# Stack Traefik + Portainer (Docker Compose v3.9)                    # commentaire: en-tête
+version: "3.9"                                                       # commentaire: version compose
+
+services:                                                            # commentaire: liste des services
+  traefik:                                                           # commentaire: service Traefik
+    image: traefik:v2.11                                             # commentaire: image traefik
+    command:                                                         # commentaire: options de ligne de commande
+      - --api.dashboard=true                                         # commentaire: active le dashboard
+      - --entrypoints.web.address=:80                                # commentaire: entrypoint HTTP
+      - --entrypoints.websecure.address=:443                         # commentaire: entrypoint HTTPS
+      - --providers.docker=true                                      # commentaire: découvre les containers
+      - --certificatesresolvers.le.acme.tlschallenge=true            # commentaire: ACME TLS-ALPN
+      - --certificatesresolvers.le.acme.email={{ letsencrypt_email }}# commentaire: email ACME
+      - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json # commentaire: stockage des certifs
+    ports:                                                           # commentaire: publication de ports
+      - "80:80"                                                      # commentaire: map port HTTP
+      - "443:443"                                                    # commentaire: map port HTTPS
+    volumes:                                                         # commentaire: montages volumes
+      - /var/run/docker.sock:/var/run/docker.sock:ro                 # commentaire: accès read-only au socket docker
+      - ./letsencrypt:/letsencrypt                                   # commentaire: dossier pour les certifs
+    restart: unless-stopped                                          # commentaire: redémarrage auto
+    labels:                                                          # commentaire: labels dynamiques pour Traefik
+      - "traefik.enable=true"                                        # commentaire: active ce service côté Traefik
+      - "traefik.http.routers.api.rule=Host(`{{ traefik_dashboard_host }}`)"  # commentaire: route du dashboard
+      - "traefik.http.routers.api.service=api@internal"              # commentaire: service interne Traefik
+      - "traefik.http.routers.api.entrypoints=websecure"             # commentaire: exposé sur HTTPS
+      - "traefik.http.routers.api.tls.certresolver=le"               # commentaire: certs via resolver le
+
+  portainer:                                                         # commentaire: service Portainer
+    image: portainer/portainer-ce:latest                             # commentaire: image Portainer CE
+    command: ["--http-disabled", "--tlsverify"]                      # commentaire: force TLS
+    restart: unless-stopped                                          # commentaire: redémarrage auto
+    ports:                                                           # commentaire: publication de port admin
+      - "9443:9443"                                                  # commentaire: HTTPS Portainer
+    volumes:                                                         # commentaire: volumes persistants
+      - /var/run/docker.sock:/var/run/docker.sock                    # commentaire: accès au socket docker
+      - portainer_data:/data                                         # commentaire: données Portainer
+    labels:                                                          # commentaire: exposition via Traefik
+      - "traefik.enable=true"                                        # commentaire: active le routage
+      - "traefik.http.routers.portainer.rule=Host(`{{ portainer_host }}`)" # commentaire: host virtuel
+      - "traefik.http.routers.portainer.entrypoints=websecure"       # commentaire: via HTTPS
+      - "traefik.http.routers.portainer.tls.certresolver=le"         # commentaire: certs automatiques
+
+volumes:                                                             # commentaire: volumes déclarés
+  portainer_data:                                                    # commentaire: volume nommé Portainer

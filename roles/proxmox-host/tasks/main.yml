@@ -1,0 +1,72 @@
+# Tâches pour configurer Proxmox (réseau + NAT + persistance)       # commentaire: rôle proxmox-host
+
+- name: Assurer iptables-persistent installé                         # commentaire: package pour persister les règles iptables
+  ansible.builtin.package:
+    name:                                                            # commentaire: liste des paquets
+      - iptables                                                     # commentaire: utilitaires iptables
+      - iptables-persistent                                          # commentaire: service netfilter-persistent
+    state: present                                                   # commentaire: s'assurer qu'ils sont installés
+
+- name: Activer le routage IPv4                                      # commentaire: nécessaire au forward entre bridges
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward                                        # commentaire: clé sysctl
+    value: '1'                                                       # commentaire: active le routage
+    state: present                                                   # commentaire: persiste dans /etc/sysctl.conf
+    reload: yes                                                      # commentaire: applique immédiatement
+
+# NOTE: on ajoute les bridges via lineinfile pour ne pas écraser le fichier complet
+- name: Ajouter bridge vmbr1 (WAN privé OPNsense) si absent          # commentaire: vmbr1 porte 192.168.1.1/24 côté Proxmox
+  ansible.builtin.blockinfile:
+    path: /etc/network/interfaces                                    # commentaire: fichier des interfaces Debian/Proxmox
+    marker: "# {mark} ANSIBLE vmbr1"                                 # commentaire: délimiteurs pour retrouver le bloc
+    block: |                                                         # commentaire: contenu à insérer
+      auto {{ opnsense_wan_bridge }}                                 # commentaire: active vmbr1 au boot
+      iface {{ opnsense_wan_bridge }} inet static                    # commentaire: vmbr1 en IPv4 statique
+          address {{ proxmox_wan_bridge_ip }}/24                     # commentaire: IP/masque du bridge vmbr1
+          bridge_ports none                                          # commentaire: pas d'esclave physique (bridge pur)
+          bridge_stp off                                             # commentaire: spanning tree désactivé
+          bridge_fd 0                                                # commentaire: forward delay à 0
+
+- name: Ajouter bridge vmbr2 (LAN interne) si absent                 # commentaire: vmbr2 sert de LAN derrière OPNsense
+  ansible.builtin.blockinfile:
+    path: /etc/network/interfaces                                    # commentaire: même fichier
+    marker: "# {mark} ANSIBLE vmbr2"                                 # commentaire: marqueurs séparés
+    block: |                                                         # commentaire: bloc vmbr2
+      auto {{ lan_bridge }}                                          # commentaire: active vmbr2 au boot
+      iface {{ lan_bridge }} inet manual                             # commentaire: pas d'IP sur l'hôte (isolation)
+          bridge_ports none                                          # commentaire: bridge sans interface physique
+          bridge_stp off                                             # commentaire: STP off
+          bridge_fd 0                                                # commentaire: forward delay 0
+  notify: restart networking                                         # commentaire: redémarrer le service réseau après modifs
+
+- name: Règle NAT (MASQUERADE) pour réseau OPNsense WAN             # commentaire: NATe 192.168.1.0/24 vers vmbr0 (IP publique)
+  community.general.iptables:
+    table: nat                                                       # commentaire: table nat
+    chain: POSTROUTING                                               # commentaire: chaîne postrouting
+    source: "{{ opnsense_wan_cidr }}"                                # commentaire: source = réseau vmbr1
+    out_interface: "{{ wan_public_iface }}"                           # commentaire: sortie = vmbr0 (Internet)
+    jump: MASQUERADE                                                 # commentaire: cible = masquerade
+
+- name: Forward LAN->Internet                                       # commentaire: autorise vmbr1 -> vmbr0
+  community.general.iptables:
+    chain: FORWARD                                                   # commentaire: chaîne filter/FORWARD
+    in_interface: "{{ opnsense_wan_bridge }}"                        # commentaire: entrée vmbr1
+    out_interface: "{{ wan_public_iface }}"                          # commentaire: sortie vmbr0
+    jump: ACCEPT                                                     # commentaire: accepte
+
+- name: Forward retour (RELATED,ESTABLISHED)                         # commentaire: autorise le trafic de réponse uniquement
+  community.general.iptables:
+    chain: FORWARD                                                   # commentaire: même chaîne
+    in_interface: "{{ wan_public_iface }}"                           # commentaire: entrée vmbr0
+    out_interface: "{{ opnsense_wan_bridge }}"                       # commentaire: sortie vmbr1
+    match: state                                                     # commentaire: module état
+    ctstate: RELATED,ESTABLISHED                                     # commentaire: connexions de retour
+    jump: ACCEPT                                                     # commentaire: accepte
+
+- name: Déployer règles persistantes /etc/iptables/rules.v4         # commentaire: pour survivre au reboot
+  ansible.builtin.template:
+    src: rules.v4.j2                                                 # commentaire: template jinja2
+    dest: /etc/iptables/rules.v4                                    # commentaire: emplacement standard iptables-persistent
+    mode: '0644'                                                     # commentaire: permissions
+    backup: yes                                                      # commentaire: garde un backup avant remplacement
+  notify: reload iptables persistent                                 # commentaire: recharge le service netfilter

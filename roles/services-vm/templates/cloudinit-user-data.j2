@@ -1,0 +1,30 @@
+#cloud-config                                                           # commentaire: entête cloud-init
+users:                                                                  # commentaire: utilisateurs à créer
+  - name: {{ services_vm_user }}                                        # commentaire: nom d'utilisateur
+    sudo: ALL=(ALL) NOPASSWD:ALL                                        # commentaire: sudo sans mot de passe
+    groups: sudo                                                        # commentaire: groupe sudo
+    shell: /bin/bash                                                    # commentaire: shell par défaut
+    ssh_authorized_keys:                                                # commentaire: clés SSH autorisées
+      - {{ services_vm_ssh_authorized_key }}                            # commentaire: ta clé publique
+
+package_update: true                                                    # commentaire: apt update à la première connexion
+package_upgrade: false                                                  # commentaire: pas d'upgrade auto
+
+write_files:                                                            # commentaire: fichiers à écrire
+  - path: /etc/netplan/01-netcfg.yaml                                   # commentaire: netplan pour config réseau
+    content: |                                                          # commentaire: contenu YAML
+      network:                                                          # commentaire: clé racine netplan
+        version: 2                                                      # commentaire: version netplan
+        ethernets:                                                      # commentaire: interfaces
+          ens18:                                                        # commentaire: nom probable de l'interface (ajuste si besoin)
+            dhcp4: false                                                # commentaire: pas de DHCP
+            addresses:                                                  # commentaire: adresses statiques
+              - {{ services_vm_ip }}/{{ services_vm_cidr }}             # commentaire: IP/masque VM services
+            routes:                                                     # commentaire: routes
+              - to: default                                             # commentaire: route par défaut
+                via: {{ lan_gateway }}                                  # commentaire: passerelle = OPNsense LAN
+            nameservers:                                                # commentaire: DNS
+              addresses: [1.1.1.1,8.8.8.8]                              # commentaire: serveurs DNS publics
+
+runcmd:                                                                 # commentaire: commandes de post-config
+  - netplan apply                                                       # commentaire: applique netplan
