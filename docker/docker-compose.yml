@@ -1,0 +1,13 @@
+version: "3.8"
+
+services:
+  ansible:
+    build: .
+    container_name: ansible_runner
+    volumes:
+      - ../ansible:/ansible   # on monte le dossier ansible local dans /ansible du container
+      - ~/.ssh:/root/.ssh:ro  # pour réutiliser tes clés SSH
+    environment:
+      - ANSIBLE_HOST_KEY_CHECKING=False
+    working_dir: /ansible
+    entrypoint: [ "ansible-playbook", "-i", "inventories/hosts.ini", "site.yml" ]
