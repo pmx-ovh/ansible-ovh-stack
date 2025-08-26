@@ -1,32 +1,44 @@
 # ansible-ovh-stack
 
-Infrastructure as Code pour déployer un environnement complet sur Proxmox avec une **contrainte OVH 1:1 IP**, automatisé via **Ansible** et exécutable depuis **Docker**, sans installer Ansible localement.
+Infrastructure as Code pour déployer un environnement complet sur **Proxmox** avec une **IP publique OVH unique (1:1 MAC/IP)**, automatisé via **Ansible**, et exécuté depuis **Docker** sans installer Ansible localement.
 
 ---
 
-## 🌐 Architecture
+## 🌐 Architecture réseau et flux
 
 ```
-Proxmox Host
-├─ vmbr0 (WAN, internet)
-├─ vmbr1 (LAN interne → OPNsense WAN)
-├─ vmbr2 (LAN interne → services)
-
-VM OPNsense
-├─ net0 → vmbr1 (WAN)
-├─ net1 → vmbr2 (LAN)
-└─ NAT LAN → WAN
-
+Internet (IP OVH unique)
+   ↓
+Proxmox host
+   ↓ vmbr1 (bridge WAN)
+VM OPNsense (firewall/NAT, règles)
+   ↓ vmbr2 (bridge LAN)
 VM Services
-├─ net0 → vmbr2 (LAN interne)
-├─ Docker
-│  ├─ HAProxy
-│  ├─ Traefik
-│  └─ Portainer
+   ├─ HAProxy (reverse proxy VM-level)
+   │    ↓ distribue vers VMs / services
+   └─ Traefik (reverse proxy container-level)
+        ↓ distribue vers conteneurs Docker
+             └─ Portainer / autres services
 ```
 
-- Toutes les machines du LAN sortent sur Internet via l’IP OVH unique.  
-- Les machines du LAN ne sont pas joignables depuis le réseau public.
+### Points clés
+
+1. **OPNsense**  
+   - Firewall et NAT pour le LAN interne  
+   - Filtrage du trafic entrant/sortant  
+
+2. **HAProxy**  
+   - Point d’entrée unique sur la VM services  
+   - Routage vers plusieurs VMs/services selon nom de domaine ou port  
+
+3. **Traefik**  
+   - À l’intérieur de la VM services  
+   - Routage vers les conteneurs Docker via labels  
+   - Gestion automatique SSL/TLS via Let’s Encrypt  
+
+4. **Docker / Portainer**  
+   - Héberge tous les services internes et stacks  
+   - Traefik assure la distribution vers les conteneurs  
 
 ---
 
@@ -34,13 +46,13 @@ VM Services
 
 ```
 ansible-ovh-stack/
-├── ansible/                   # Playbooks Ansible
-│   ├── inventories/
-│   ├── group_vars/
-│   ├── roles/
-│   ├── requirements.yml
-│   └── site.yml
-├── docker/                    # Conteneur Docker pour Ansible
+├── ansible/                  # Playbooks Ansible
+│   ├── inventories/hosts.ini  # Inventaire des hôtes
+│   ├── group_vars/all.yml     # Variables globales
+│   ├── roles/                 # Rôles pour Proxmox, OPNsense, Services
+│   ├── requirements.yml       # Collections Ansible
+│   └── site.yml               # Playbook principal
+├── docker/                    # Docker pour exécuter Ansible
 │   ├── Dockerfile
 │   ├── docker-compose.yml
 │   └── run.sh
@@ -50,27 +62,23 @@ ansible-ovh-stack/
 
 ---
 
-## ⚙️ Pré-requis
+## ⚙️ Prérequis
 
 - macOS ou Linux avec **Docker** et **Docker Compose v2**  
 - Accès root SSH à Proxmox  
-- IP publique OVH 1:1  
+- **IP publique OVH 1:1**  
 - Compte GitHub pour versionner le projet  
 
 ---
 
-## 🚀 Lancer les playbooks depuis Docker
+## 🚀 Exécution des playbooks via Docker
 
-### 1️⃣ Construire l’image Docker contenant Ansible
+### 1️⃣ Construire l’image Docker Ansible
 
 ```bash
 cd docker
 docker compose build
 ```
-
-> Cette étape installe Ansible et toutes ses dépendances dans un conteneur Docker.
-
----
 
 ### 2️⃣ Lancer le playbook principal
 
@@ -78,41 +86,29 @@ docker compose build
 ./run.sh
 ```
 
-Le script exécute :
+- Monte le répertoire `ansible/` dans le conteneur  
+- Monte `~/.ssh` pour utiliser les clés SSH  
+- Exécute `ansible-playbook -i inventories/hosts.ini site.yml`  
 
-```bash
-ansible-playbook -i inventories/hosts.ini site.yml
-```
-
-dans un conteneur Docker, avec :
-
-- le dossier `ansible/` monté comme volume
-- les clés SSH disponibles via `~/.ssh`
-- la configuration réseau et le NAT automatiquement appliqués sur Proxmox
-
----
-
-### 3️⃣ Vérifier le bon déroulement
-
-- Depuis la machine locale, tu peux tester la connexion aux hôtes Proxmox :
+### 3️⃣ Vérifier la connexion aux hôtes
 
 ```bash
 docker compose run --rm ansible ansible -i inventories/hosts.ini all -m ping
 ```
 
-- Tu peux aussi exécuter des commandes ad-hoc dans le conteneur Docker :
+### 4️⃣ Exécuter des commandes ad-hoc
 
 ```bash
 docker compose run --rm --entrypoint bash ansible
-# puis dans le conteneur :
+# Puis à l’intérieur du conteneur :
 ansible-playbook -i inventories/hosts.ini site.yml
 ```
 
 ---
 
-## 🔧 Gestion des clés SSH pour GitHub
+## 🔑 Gestion des clés SSH pour GitHub
 
-1. Générer une clé SSH dédiée pour le projet :
+1. Générer une clé SSH dédiée :
 
 ```bash
 ssh-keygen -t ed25519 -C "pmx.ovh@proton.me" -f ~/.ssh/pmx-ovh_id_ed25519
@@ -125,7 +121,7 @@ eval "$(ssh-agent -s)"
 ssh-add ~/.ssh/pmx-ovh_id_ed25519
 ```
 
-3. Configurer l’alias SSH dans `~/.ssh/config` :
+3. Configurer l’alias SSH :
 
 ```text
 Host pmx-ovh
@@ -139,12 +135,12 @@ Host pmx-ovh
 
 ```bash
 ssh -T pmx-ovh
+# Doit afficher : Hi <username>! You've successfully authenticated...
 ```
 
 5. Ajouter le remote Git via l’alias :
 
 ```bash
-cd /Users/f/Desktop/ismo/ansible-ovh-stack/
 git remote add origin git@pmx-ovh:pmx-ovh/ansible-ovh-stack.git
 ```
 
@@ -158,27 +154,41 @@ git commit -m "Initial commit: Ansible OVH stack"
 git push -u origin main
 ```
 
-> L’alias SSH garantit que chaque projet utilise la bonne clé et le bon compte GitHub.
+- L’alias SSH assure que le dépôt utilise la bonne clé et le bon compte GitHub.  
 
 ---
 
-## 📄 Commandes utiles
+## 🔧 Commandes utiles
 
-Voir `commands.md` pour :  
-
-- Tester l’inventaire Ansible
-- Ping des hôtes
-- Installer les collections Ansible
-- Logs détaillés / debug
-- Nettoyage des containers Docker
+- Voir `commands.md` pour :  
+  - Tester l’inventaire Ansible  
+  - Ping des hôtes  
+  - Installer les collections  
+  - Logs détaillés / debug  
+  - Nettoyage des containers Docker  
 
 ---
 
 ## 🔐 Sécurité
 
-- Ne pas committer les mots de passe ou secrets en clair dans `group_vars/all.yml`.  
-- Les variables sensibles doivent passer via `--extra-vars`.  
+- Ne pas committer de mots de passe ou secrets dans `group_vars/all.yml`.  
+- Variables sensibles → passer via `--extra-vars`.  
 - Permissions des fichiers SSH : `chmod 600 ~/.ssh/pmx-ovh_id_ed25519`.  
+
+---
+
+## 📄 Déploiement
+
+1. Configurer `hosts.ini` et `group_vars/all.yml` avec tes IP OVH et LAN.  
+2. Lancer depuis Docker :
+
+```bash
+cd docker
+./run.sh
+```
+
+3. Vérifier via Proxmox, Portainer et Ansible.  
+4. Configurer le DNS de ton domaine vers l’IP OVH pour les services exposés.  
 
 ---
 
@@ -187,4 +197,15 @@ Voir `commands.md` pour :
 - [Proxmox Documentation](https://pve.proxmox.com/wiki/Main_Page)  
 - [OPNsense Documentation](https://docs.opnsense.org/)  
 - [Ansible Documentation](https://docs.ansible.com/)  
-- [Docker Documentation](https://docs.docker.com/)
+- [Docker Documentation](https://docs.docker.com/)  
+
+---
+
+## ✅ Résultat
+
+- Une seule VM frontale reçoit l’IP OVH et gère tout le trafic entrant.  
+- OPNsense sécurise le LAN et applique le NAT sortant.  
+- HAProxy distribue le trafic vers VM services ou Traefik.  
+- Traefik distribue le trafic vers les conteneurs Docker.  
+- Portainer accessible pour gérer les stacks Docker.  
+- Flux sécurisé et respectueux des contraintes OVH 1:1 IP.

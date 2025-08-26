@@ -1,56 +1,17 @@
-# ========================= VARIABLES GLOBALES ========================= # commentaire: toutes les variables utilisables dans les rôles
+# Variables globales utilisées par tous les rôles
 
-# --- OVH / IP publique unique ---
-ovh_public_ip: "X.X.X.X"                                       # commentaire: METS ICI TON IP PUBLIQUE OVH
+# Bridges Proxmox
+proxmox_bridge_wan: "vmbr0"
+proxmox_bridge_lan: "vmbr1"
 
-# --- Proxmox API / Node ---
-proxmox_api_host: "1.2.3.4"                                    # commentaire: IP/hostname du nœud Proxmox
-proxmox_api_user: "root@pam"                                   # commentaire: utilisateur API (root@pam par défaut)
-proxmox_api_password: "CHANGE_ME"                              # commentaire: mot de passe ou token (évite en clair en prod)
-proxmox_node: "pve"                                            # commentaire: nom du node (souvent 'pve')
+# Réseau LAN interne
+lan_network: "192.168.100.0/24"
+lan_gateway: "192.168.100.1"
 
-# --- Bridges Proxmox ---
-wan_public_iface: "vmbr0"                                      # commentaire: bridge relié à Internet OVH (IP publique sur l'hôte)
-opnsense_wan_bridge: "vmbr1"                                   # commentaire: bridge privé entre Proxmox et OPNsense (WAN d'OPNsense)
-lan_bridge: "vmbr2"                                            # commentaire: bridge LAN interne derrière OPNsense
+# IP unique OVH
+ovh_ip: "VOTRE_IP_OVH"
+ovh_netmask: "255.255.255.0"
+ovh_gateway: "IP_GATEWAY_OVH"
 
-# --- Adressage (Proxmox <-> OPNsense sur vmbr1) ---
-proxmox_wan_bridge_ip: "192.168.1.1"                           # commentaire: IP du bridge vmbr1 côté Proxmox
-opnsense_wan_ip: "192.168.1.2"                                  # commentaire: IP WAN d'OPNsense (sur vmbr1)
-opnsense_wan_cidr: "192.168.1.0/24"                            # commentaire: sous-réseau entre Proxmox et OPNsense
-
-# --- Adressage LAN derrière OPNsense (vmbr2) ---
-lan_gateway: "192.168.100.1"                                   # commentaire: IP LAN d'OPNsense (passerelle des VMs)
-lan_cidr: "192.168.100.0/24"                                   # commentaire: sous-réseau LAN
-services_vm_ip: "192.168.100.10"                               # commentaire: IP fixe pour la VM "services"
-services_vm_cidr: 24                                           # commentaire: longueur de masque pour la VM services
-
-# --- Stockages / ISO ---
-opnsense_iso: "local:iso/OPNsense-latest.iso"                  # commentaire: chemin ISO OPNsense dans Proxmox
-debian_iso: "local:iso/debian-12.6.0-amd64-netinst.iso"        # commentaire: chemin ISO Debian pour VM services
-vm_storage: "local-lvm"                                        # commentaire: storage pour les disques (ajuste si besoin)
-
-# --- VM IDs et ressources ---
-opnsense_vmid: 900                                             # commentaire: ID VM OPNsense
-services_vmid: 910                                             # commentaire: ID VM services
-opnsense_vm_cpu: 2                                             # commentaire: vCPU pour OPNsense
-opnsense_vm_ram: 2048                                          # commentaire: RAM MB pour OPNsense
-services_vm_cpu: 4                                             # commentaire: vCPU pour services
-services_vm_ram: 4096                                          # commentaire: RAM MB pour services
-services_vm_disk_gb: 40                                        # commentaire: taille disque GB pour services
-
-# --- Utilisateur SSH (si cloud-init) ---
-services_vm_user: "devops"                                     # commentaire: user à créer sur VM services
-services_vm_ssh_authorized_key: "ssh-ed25519 AAAA...clé_pub"   # commentaire: ta clé publique (si usage cloud-init)
-
-# --- Traefik / Let’s Encrypt / FQDNs ---
-letsencrypt_email: "admin@example.com"                         # commentaire: email ACME
-root_domain: "example.com"                                     # commentaire: domaine racine (DNS doit pointer vers IP OVH)
-portainer_host: "portainer.{{ root_domain }}"                  # commentaire: FQDN Portainer
-traefik_dashboard_host: "traefik.{{ root_domain }}"            # commentaire: FQDN dashboard Traefik
-
-# --- HAProxy ports / backend Traefik ---
-haproxy_front_http_port: 80                                    # commentaire: port frontal HTTP HAProxy
-haproxy_front_https_port: 443                                  # commentaire: port frontal HTTPS HAProxy
-haproxy_back_traefik_http: 80                                  # commentaire: backend HTTP vers Traefik
-haproxy_back_traefik_https: 443                                # commentaire: backend HTTPS (TCP) vers Traefik
+# Utilisateur Ansible
+ansible_user: "root"

@@ -1,29 +1,11 @@
-# Création de la VM OPNsense via l'API Proxmox                              # commentaire: rôle opnsense-vm
+---
+# Tâches pour configurer OPNsense
+# Note: À adapter selon votre version OPNsense
 
-- name: Créer VM OPNsense si absente                                        # commentaire: idempotent
-  community.general.proxmox_kvm:
-    api_host: "{{ proxmox_api_host }}"                                      # commentaire: cible API
-    api_user: "{{ proxmox_api_user }}"                                      # commentaire: user API
-    api_password: "{{ proxmox_api_password }}"                              # commentaire: mot de passe API
-    node: "{{ proxmox_node }}"                                              # commentaire: nom du node
-    vmid: "{{ opnsense_vmid }}"                                             # commentaire: ID VM
-    name: "opnsense"                                                        # commentaire: nom VM
-    memory: "{{ opnsense_vm_ram }}"                                         # commentaire: RAM MB
-    cores: "{{ opnsense_vm_cpu }}"                                          # commentaire: vCPU
-    ostype: other                                                           # commentaire: type OS (autre)
-    scsihw: virtio-scsi-pci                                                 # commentaire: contrôleur disque
-    boot: cdrom                                                             # commentaire: boot sur CD
-    ide:                                                                    # commentaire: lecteurs IDE
-      ide2: "{{ opnsense_iso }},media=cdrom"                                # commentaire: ISO OPNsense en CD
-    net:                                                                    # commentaire: cartes réseau
-      net0: "virtio,bridge={{ opnsense_wan_bridge }}"                       # commentaire: net0 = WAN (vmbr1)
-      net1: "virtio,bridge={{ lan_bridge }}"                                # commentaire: net1 = LAN (vmbr2)
-    sata:                                                                   # commentaire: disques SATA
-      sata0: "{{ vm_storage }}:8589934592"                                  # commentaire: disque 8 GiB (ajuste si besoin)
-  register: opnsense_vm                                                     # commentaire: enregistre le résultat
+- name: Recharger les règles NAT
+  ansible.builtin.command: >
+    /usr/local/sbin/configctl nat reload
 
-- name: Rappel de configuration OPNsense                                    # commentaire: message aux ops
-  ansible.builtin.debug:
-    msg: >-                                                                  # commentaire: texte multi-ligne
-      Démarre la VM OPNsense et assigne: WAN={{ opnsense_wan_ip }}/24 GW={{ proxmox_wan_bridge_ip }} sur {{ opnsense_wan_bridge }},
-      LAN={{ lan_gateway }}/24 sur {{ lan_bridge }}. Laisse NAT outbound en AUTOMATIC. Active DHCP LAN si souhaité.
+- name: Appliquer la politique firewall par défaut
+  ansible.builtin.command: >
+    /usr/local/sbin/configctl filter reload

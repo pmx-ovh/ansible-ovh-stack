@@ -1,13 +1,13 @@
-version: "3.8"
+version: "3.9"
 
 services:
   ansible:
     build: .
-    container_name: ansible_runner
+    container_name: ansible-ovh
     volumes:
-      - ../ansible:/ansible   # on monte le dossier ansible local dans /ansible du container
-      - ~/.ssh:/root/.ssh:ro  # pour réutiliser tes clés SSH
-    environment:
-      - ANSIBLE_HOST_KEY_CHECKING=False
+      - ../ansible:/ansible         # Monte le projet Ansible
+      - ~/.ssh:/root/.ssh:ro        # Monte les clés SSH pour Proxmox/GitHub
     working_dir: /ansible
-    entrypoint: [ "ansible-playbook", "-i", "inventories/hosts.ini", "site.yml" ]
+    tty: true                       # Pour pouvoir rester en mode interactif
+    environment:
+      ANSIBLE_HOST_KEY_CHECKING: "False" # Désactive la vérification des clés SSH

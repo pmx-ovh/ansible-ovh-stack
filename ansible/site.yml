@@ -1,7 +1,20 @@
-# Playbook maître orchestrant tous les rôles                         # commentaire: point d'entrée
-- hosts: proxmox                                                     # commentaire: cible le groupe 'proxmox' de l'inventaire
-  become: true                                                       # commentaire: exécute en privilèges root
-  roles:                                                             # commentaire: liste des rôles à dérouler
-    - proxmox-host                                                   # commentaire: configure bridges + NAT + règles persistantes
-    - opnsense-vm                                                    # commentaire: crée la VM OPNsense (2 NIC)
-    - services-vm                                                    # commentaire: crée la VM services (Docker/HAProxy/Traefik/Portainer ultérieurement)
+---
+# Playbook principal qui orchestre tous les rôles
+
+- name: Provisionner le Proxmox Host
+  hosts: proxmox
+  become: yes
+  roles:
+    - proxmox-host
+
+- name: Déployer OPNsense VM
+  hosts: opnsense
+  become: yes
+  roles:
+    - opnsense-vm
+
+- name: Déployer Services VM
+  hosts: services
+  become: yes
+  roles:
+    - services-vm

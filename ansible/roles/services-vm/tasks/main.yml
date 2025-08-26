@@ -1,27 +1,29 @@
-# Création de la VM "services" (Debian) via API Proxmox                         # commentaire: rôle services-vm
+---
+# Tâches pour configurer la VM Services avec Docker, Traefik et HAProxy
 
-- name: Créer VM services si absente                                           # commentaire: idempotent
-  community.general.proxmox_kvm:
-    api_host: "{{ proxmox_api_host }}"                                         # commentaire: API
-    api_user: "{{ proxmox_api_user }}"                                         # commentaire: user
-    api_password: "{{ proxmox_api_password }}"                                 # commentaire: pass
-    node: "{{ proxmox_node }}"                                                 # commentaire: node
-    vmid: "{{ services_vmid }}"                                                # commentaire: ID VM
-    name: "services"                                                           # commentaire: nom
-    memory: "{{ services_vm_ram }}"                                            # commentaire: RAM
-    cores: "{{ services_vm_cpu }}"                                             # commentaire: vCPU
-    ostype: l26                                                                # commentaire: Linux 2.6+
-    scsihw: virtio-scsi-pci                                                    # commentaire: contrôleur SCSI
-    boot: cdrom                                                                # commentaire: boot sur ISO Debian
-    ide:                                                                       # commentaire: lecteurs IDE
-      ide2: "{{ debian_iso }},media=cdrom"                                     # commentaire: ISO Debian
-    net:                                                                       # commentaire: réseau
-      net0: "virtio,bridge={{ lan_bridge }}"                                   # commentaire: connectée au LAN (vmbr2)
-    sata:                                                                      # commentaire: disque
-      sata0: "{{ vm_storage }}:{{ services_vm_disk_gb | int * 1073741824 }}"   # commentaire: taille en octets (GB -> bytes)
+- name: Copier docker-compose
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: /home/{{ ansible_user }}/docker-compose.yml
+    owner: {{ ansible_user }}
+    group: {{ ansible_user }}
+    mode: '0644'
 
-- name: Instructions post-install services                                     # commentaire: à faire une fois Debian installée
-  ansible.builtin.debug:
-    msg: >-                                                                     # commentaire: note d'installation
-      Installe Debian, configure l'IP {{ services_vm_ip }}/{{ services_vm_cidr }}, GW {{ lan_gateway }}, DNS 1.1.1.1/8.8.8.8.
-      (Option cloud-init disponible via template 'cloudinit-user-data.j2' si tu utilises un template CI.)
+- name: Copier configuration HAProxy
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Démarrer HAProxy
+  ansible.builtin.systemd:
+    name: haproxy
+    state: restarted
+    enabled: yes
+
+- name: Lancer Docker Compose
+  community.docker.docker_compose:
+    project_src: /home/{{ ansible_user }}/
+    state: present

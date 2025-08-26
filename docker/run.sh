@@ -1,10 +1,9 @@
 #!/bin/bash
-set -e
+# Script pour exécuter les playbooks Ansible via Docker
+# Il supporte l'ajout de paramètres supplémentaires (tags, extra-vars...)
 
-cd "$(dirname "$0")"
-
-# Construire l'image
+# Construire l'image si nécessaire
 docker compose build
 
-# Exécuter le playbook ansible
-docker compose run --rm ansible
+# Lancer le playbook principal
+docker compose run --rm ansible ansible-playbook -i inventories/hosts.ini site.yml "$@"
