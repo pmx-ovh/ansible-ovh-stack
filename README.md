@@ -18,15 +18,13 @@ Internet
    ▼
 Proxmox Host (vmbr0 WAN)
    │
-   ├─ vmbr1 (LAN interne)
-   │    │
-   │    ├─ Bastion VM (Docker + Ansible)
-   │    │
-   │    ├─ OPNsense VM (NAT + Firewall)
-   │    │
-   │    ├─ HAProxy VM (flux web entrants)
-   │    │
-   │    └─ Services VM (Traefik + Portainer + conteneurs)
+   └─ vmbr1 (LAN interne)
+        │
+        ├─ Bastion VM (Docker + Ansible)
+        ├─ OPNsense VM (NAT + Firewall)
+        ├─ HAProxy VM (flux web entrants)
+        └─ Services VM (Traefik + Portainer + conteneurs)
+
 
 - vmbr0 : WAN, IP publique OVH, existe par défaut sur Proxmox
 - vmbr1 : LAN interne, créé automatiquement si absent
