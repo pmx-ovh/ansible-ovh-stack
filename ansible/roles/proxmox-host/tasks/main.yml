@@ -1,18 +1,79 @@
----
-# Tâches pour configurer le Proxmox Host
+# roles/proxmox-host/tasks/main.yml
+# Configuration Proxmox host : bridges + création VMs via API
 
-- name: Configurer les bridges réseau
-  ansible.builtin.template:
+- name: Vérifier si vmbr0 existe
+  command: "brctl show vmbr0"
+  register: vmbr0_check
+  ignore_errors: yes
+
+- name: Vérifier si vmbr1 existe
+  command: "brctl show vmbr1"
+  register: vmbr1_check
+  ignore_errors: yes
+
+- name: Créer vmbr1 si absent
+  when: vmbr1_check.rc != 0
+  block:
+    - name: Ajouter vmbr1 dans /etc/network/interfaces
+      lineinfile:
+        path: /etc/network/interfaces
+        insertafter: "^auto vmbr0"
+        line: |
+          auto vmbr1
+          iface vmbr1 inet static
+              address 192.168.100.1
+              netmask 255.255.255.0
+              bridge_ports none
+              bridge_stp off
+              bridge_fd 0
+    - name: Redémarrer le réseau
+      service:
+        name: networking
+        state: restarted
+
+- name: Appliquer le template interfaces.j2
+  template:
     src: interfaces.j2
     dest: /etc/network/interfaces
-    owner: root
-    group: root
-    mode: '0644'
   notify: Restart networking
 
-- name: Activer le forwarding IP
-  ansible.builtin.sysctl:
-    name: net.ipv4.ip_forward
-    value: "1"
+- name: Installer paquets essentiels
+  apt:
+    name:
+      - curl
+      - vim
+      - python3-pip
     state: present
-    reload: yes
+    update_cache: yes
+
+- name: Définir les VMs à créer
+  set_fact:
+    vm_list:
+      - { name: "bastion", vmid: 100, template: "debian-11-standard.qcow2", cores: 2, memory: 2048, disk: 20, net_bridge: "vmbr1" }
+      - { name: "fw1", vmid: 101, template: "opnsense-template.qcow2", cores: 2, memory: 2048, disk: 20, net_bridge: "vmbr0,vmbr1" }
+      - { name: "srv1", vmid: 102, template: "debian-11-standard.qcow2", cores: 2, memory: 2048, disk: 20, net_bridge: "vmbr1" }
+      - { name: "haproxy", vmid: 103, template: "debian-11-standard.qcow2", cores: 2, memory: 2048, disk: 20, net_bridge: "vmbr1" }
+
+- name: Créer les VMs via Proxmox API si elles n'existent pas
+  community.general.proxmox:
+    api_user: "{{ proxmox_user }}"
+    api_password: "{{ proxmox_password }}"
+    api_host: "{{ proxmox_api_url }}"
+    vmid: "{{ item.vmid }}"
+    hostname: "{{ item.name }}"
+    cores: "{{ item.cores }}"
+    memory: "{{ item.memory }}"
+    disk: "{{ item.disk }}"
+    ostemplate: "local:vztmpl/{{ item.template }}"
+    netif: |
+      {% for nic in item.net_bridge.split(',') %}
+      net{{ loop.index0 }}: virtio,bridge={{ nic }}
+      {% endfor %}
+    state: present
+  loop: "{{ vm_list }}"
+  register: created_vms
+
+- name: Afficher VMs créées
+  debug:
+    msg: "VM {{ item.item.name }} créée ou déjà existante"
+  loop: "{{ created_vms.results }}"

@@ -1,20 +1,10 @@
----
-# Playbook principal qui orchestre tous les rôles
+# site.yml
+# Playbook principal
 
-- name: Provisionner le Proxmox Host
-  hosts: proxmox
-  become: yes
+- name: Déploiement complet OVH Proxmox
+  hosts: all
+  become: true
   roles:
     - proxmox-host
-
-- name: Déployer OPNsense VM
-  hosts: opnsense
-  become: yes
-  roles:
     - opnsense-vm
-
-- name: Déployer Services VM
-  hosts: services
-  become: yes
-  roles:
     - services-vm

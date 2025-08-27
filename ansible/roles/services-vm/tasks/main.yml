@@ -1,29 +1,30 @@
----
-# Tâches pour configurer la VM Services avec Docker, Traefik et HAProxy
+# roles/services-vm/tasks/main.yml
 
-- name: Copier docker-compose
-  ansible.builtin.template:
-    src: docker-compose.yml.j2
-    dest: /home/{{ ansible_user }}/docker-compose.yml
-    owner: {{ ansible_user }}
-    group: {{ ansible_user }}
-    mode: '0644'
+- name: Installer Docker et docker-compose
+  apt:
+    name:
+      - docker.io
+      - docker-compose
+    state: present
+    update_cache: yes
 
-- name: Copier configuration HAProxy
-  ansible.builtin.template:
-    src: haproxy.cfg.j2
-    dest: /etc/haproxy/haproxy.cfg
+- name: Créer répertoire docker
+  file:
+    path: /opt/docker
+    state: directory
     owner: root
     group: root
-    mode: '0644'
+    mode: '0755'
 
-- name: Démarrer HAProxy
-  ansible.builtin.systemd:
-    name: haproxy
-    state: restarted
-    enabled: yes
+- name: Déployer docker-compose.yml via template
+  template:
+    src: docker-compose.yml.j2
+    dest: /opt/docker/docker-compose.yml
 
-- name: Lancer Docker Compose
-  community.docker.docker_compose:
-    project_src: /home/{{ ansible_user }}/
-    state: present
+- name: Lancer les services Docker (Traefik + Portainer)
+  shell: docker-compose up -d
+  args:
+    chdir: /opt/docker
+
+- include_tasks: haproxy.yml
+  when: inventory_hostname == "haproxy"

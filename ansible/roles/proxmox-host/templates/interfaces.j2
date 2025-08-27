@@ -1,20 +1,23 @@
-# Interfaces réseau Proxmox
+# roles/proxmox-host/templates/interfaces.j2
+# Configuration bridges WAN/LAN
 
 auto lo
 iface lo inet loopback
 
-auto {{ proxmox_bridge_wan }}
-iface {{ proxmox_bridge_wan }} inet static
-    address {{ ovh_ip }}
-    netmask {{ ovh_netmask }}
-    gateway {{ ovh_gateway }}
-    bridge_ports eth0
+# WAN bridge
+auto vmbr0
+iface vmbr0 inet static
+    address {{ public_ip }}
+    netmask 255.255.255.0
+    gateway X.X.X.1
+    bridge_ports eno1
     bridge_stp off
     bridge_fd 0
 
-auto {{ proxmox_bridge_lan }}
-iface {{ proxmox_bridge_lan }} inet static
-    address {{ lan_gateway }}
+# LAN bridge
+auto vmbr1
+iface vmbr1 inet static
+    address {{ gateway_lan }}
     netmask 255.255.255.0
     bridge_ports none
     bridge_stp off

@@ -1,17 +1,12 @@
-# Variables globales utilisées par tous les rôles
+# group_vars/all.yml
+# Variables globales
 
-# Bridges Proxmox
-proxmox_bridge_wan: "vmbr0"
-proxmox_bridge_lan: "vmbr1"
-
-# Réseau LAN interne
+---
+public_ip: "X.X.X.X"              # Remplacer par votre IP OVH publique
 lan_network: "192.168.100.0/24"
-lan_gateway: "192.168.100.1"
-
-# IP unique OVH
-ovh_ip: "VOTRE_IP_OVH"
-ovh_netmask: "255.255.255.0"
-ovh_gateway: "IP_GATEWAY_OVH"
-
-# Utilisateur Ansible
-ansible_user: "root"
+gateway_lan: "192.168.100.1"      # IP LAN de l'OPNsense
+ssh_user: "root"                  # Utilisateur SSH
+ssh_private_key: "~/.ssh/id_ed25519"
+proxmox_api_url: "https://proxmox.example.com:8006/api2/json"
+proxmox_user: "root@pam"
+proxmox_password: "CHANGE_ME"

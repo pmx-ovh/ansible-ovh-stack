@@ -1,0 +1,10 @@
+# roles/opnsense-vm/templates/rules.v4.j2
+
+# Autoriser tout le trafic sortant du LAN vers Internet
+pass in on vmbr1 from {{ lan_network }} to any keep state
+
+# Bloquer tout le trafic entrant non sollicité depuis WAN
+block in on vmbr0 all
+
+# NAT LAN → WAN
+nat on vmbr0 from {{ lan_network }} to any -> (vmbr0)

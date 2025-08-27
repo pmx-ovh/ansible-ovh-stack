@@ -1,7 +1,6 @@
----
-# Handlers pour Proxmox
+# roles/proxmox-host/handlers/main.yml
 
 - name: Restart networking
-  ansible.builtin.service:
+  service:
     name: networking
     state: restarted
