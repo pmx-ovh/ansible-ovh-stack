@@ -13,6 +13,13 @@ Guide rapide pour piloter **Ansible via Docker** (aucune installation Ansible lo
 
 ---
 
+## 🚀 Lancement du setup depuis le bastion
+```bash
+docker build -t ansible-local:latest .
+
+docker run --rm -it   -v "$HOME/ansible-ovh-stack/ansible":/ansible   -v "$HOME/.ssh":/root/.ssh:ro   -w /ansible   ansible-local:latest -i inventories/hosts.ini site.yml
+```
+
 ## 🚀 Lancement rapide (depuis le dossier `docker/`)
 ```bash
 cd docker

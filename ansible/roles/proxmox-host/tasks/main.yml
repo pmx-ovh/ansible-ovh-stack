@@ -1,10 +1,17 @@
 # roles/proxmox-host/tasks/main.yml
-# Configuration Proxmox host : bridges + création VMs via API
+# Création des bridges et VMs via Proxmox API (compatible Ansible >=2.10)
+# netif est passé en string key=value compatible avec community.general.proxmox
 
-- name: Vérifier si vmbr0 existe
-  command: "brctl show vmbr0"
-  register: vmbr0_check
-  ignore_errors: yes
+- name: Installer paquets essentiels pour Proxmox
+  apt:
+    name:
+      - curl
+      - vim
+      - python3-pip
+      - bridge-utils
+      - qemu-guest-agent
+    state: present
+    update_cache: yes
 
 - name: Vérifier si vmbr1 existe
   command: "brctl show vmbr1"
@@ -26,33 +33,45 @@
               bridge_ports none
               bridge_stp off
               bridge_fd 0
-    - name: Redémarrer le réseau
-      service:
-        name: networking
-        state: restarted
-
-- name: Appliquer le template interfaces.j2
-  template:
-    src: interfaces.j2
-    dest: /etc/network/interfaces
-  notify: Restart networking
-
-- name: Installer paquets essentiels
-  apt:
-    name:
-      - curl
-      - vim
-      - python3-pip
-    state: present
-    update_cache: yes
+    - name: Activer vmbr1
+      command: "ip link set vmbr1 up"
 
 - name: Définir les VMs à créer
   set_fact:
     vm_list:
-      - { name: "bastion", vmid: 100, template: "debian-11-standard.qcow2", cores: 2, memory: 2048, disk: 20, net_bridge: "vmbr1" }
-      - { name: "fw1", vmid: 101, template: "opnsense-template.qcow2", cores: 2, memory: 2048, disk: 20, net_bridge: "vmbr0,vmbr1" }
-      - { name: "srv1", vmid: 102, template: "debian-11-standard.qcow2", cores: 2, memory: 2048, disk: 20, net_bridge: "vmbr1" }
-      - { name: "haproxy", vmid: 103, template: "debian-11-standard.qcow2", cores: 2, memory: 2048, disk: 20, net_bridge: "vmbr1" }
+      - name: "bastion"
+        vmid: 100
+        template: "debian-11-standard.qcow2"
+        cores: 2
+        memory: 2048
+        disk: 20
+        netif:
+          - "net0=virtio,bridge=vmbr1"
+      - name: "fw1"
+        vmid: 101
+        template: "opnsense-template.qcow2"
+        cores: 2
+        memory: 2048
+        disk: 20
+        netif:
+          - "net0=virtio,bridge=vmbr0"
+          - "net1=virtio,bridge=vmbr1"
+      - name: "srv1"
+        vmid: 102
+        template: "debian-11-standard.qcow2"
+        cores: 2
+        memory: 2048
+        disk: 20
+        netif:
+          - "net0=virtio,bridge=vmbr1"
+      - name: "haproxy"
+        vmid: 103
+        template: "debian-11-standard.qcow2"
+        cores: 2
+        memory: 2048
+        disk: 20
+        netif:
+          - "net0=virtio,bridge=vmbr1"
 
 - name: Créer les VMs via Proxmox API si elles n'existent pas
   community.general.proxmox:
@@ -64,11 +83,8 @@
     cores: "{{ item.cores }}"
     memory: "{{ item.memory }}"
     disk: "{{ item.disk }}"
-    ostemplate: "local:vztmpl/{{ item.template }}"
-    netif: |
-      {% for nic in item.net_bridge.split(',') %}
-      net{{ loop.index0 }}: virtio,bridge={{ nic }}
-      {% endfor %}
+    ostemplate: "local:{{ item.template }}"
+    netif: "{{ item.netif | join(',') }}"
     state: present
   loop: "{{ vm_list }}"
   register: created_vms

@@ -1,6 +1,8 @@
 # roles/services-vm/tasks/main.yml
+# Déploiement Docker + Traefik + Portainer
+# On suppose Debian/Ubuntu avec Docker préinstallé
 
-- name: Installer Docker et docker-compose
+- name: Installer Docker
   apt:
     name:
       - docker.io
@@ -8,23 +10,12 @@
     state: present
     update_cache: yes
 
-- name: Créer répertoire docker
-  file:
-    path: /opt/docker
-    state: directory
-    owner: root
-    group: root
-    mode: '0755'
-
-- name: Déployer docker-compose.yml via template
+- name: Copier docker-compose.yml
   template:
     src: docker-compose.yml.j2
-    dest: /opt/docker/docker-compose.yml
+    dest: /home/{{ ansible_user }}/docker-compose.yml
 
-- name: Lancer les services Docker (Traefik + Portainer)
-  shell: docker-compose up -d
+- name: Lancer services
+  shell: "docker-compose -f /home/{{ ansible_user }}/docker-compose.yml up -d"
   args:
-    chdir: /opt/docker
-
-- include_tasks: haproxy.yml
-  when: inventory_hostname == "haproxy"
+    chdir: "/home/{{ ansible_user }}"

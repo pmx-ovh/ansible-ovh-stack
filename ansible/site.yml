@@ -1,10 +1,28 @@
 # site.yml
-# Playbook principal
+# Playbook principal pour déployer tout le stack OVH sur Proxmox
 
 - name: Déploiement complet OVH Proxmox
-  hosts: all
+  hosts: proxmox
   become: true
+  vars_files:
+    - group_vars/all.yml
   roles:
     - proxmox-host
+
+- name: Configurer OPNsense
+  hosts: opnsense
+  become: true
+  roles:
     - opnsense-vm
+
+- name: Déployer HAProxy
+  hosts: haproxy
+  become: true
+  roles:
+    - haproxy-vm
+
+- name: Déployer Services Traefik + Portainer
+  hosts: services
+  become: true
+  roles:
     - services-vm
