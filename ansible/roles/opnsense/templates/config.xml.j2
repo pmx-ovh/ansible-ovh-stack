@@ -1,0 +1,39 @@
+<opnsense>
+  <system>
+    <hostname>fw1</hostname>
+    <domain>local</domain>
+    <timezone>Europe/Paris</timezone>
+  </system>
+
+  <interfaces>
+    <lan>
+      <if>em1</if>
+      <ipaddr>{{ proxmox_lan_ip }}</ipaddr>
+      <subnet>24</subnet>
+    </lan>
+    <wan>
+      <if>em0</if>
+      <ipaddr>dhcp</ipaddr>
+    </wan>
+  </interfaces>
+
+  <openvpn>
+    <server>
+      <vpnid>1</vpnid>
+      <protocol>udp</protocol>
+      <dev>tun</dev>
+      <local_port>1194</local_port>
+      <description>Remote VPN</description>
+      <tunnel_network>{{ vpn_network }}</tunnel_network>
+    </server>
+  </openvpn>
+
+  <firewall>
+    <rule>
+      <interface>wan</interface>
+      <protocol>udp</protocol>
+      <destination_port>1194</destination_port>
+      <action>pass</action>
+    </rule>
+  </firewall>
+</opnsense>

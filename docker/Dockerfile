@@ -1,20 +1,32 @@
-# Image de base légère avec Python 3.12
-FROM python:3.12-slim
+FROM python:3.11-slim
 
-# Éviter les prompts interactifs
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Installer les dépendances système nécessaires
+# Install system dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        sshpass git vim curl python3-pip sudo openssh-client \
+        sshpass \
+        ssh \
+        git \
+        curl \
+        vim \
+        bridge-utils \
+        docker.io \
         && rm -rf /var/lib/apt/lists/*
 
-# Installer Ansible et ansible-lint pour la vérification des playbooks
-RUN pip install --no-cache-dir ansible ansible-lint
+# Create a virtualenv for Ansible
+RUN python3 -m venv /opt/ansible-venv
+ENV PATH="/opt/ansible-venv/bin:$PATH"
 
-# Définir le répertoire de travail
+# Upgrade pip
+RUN pip install --upgrade pip
+
+# Install Ansible and Python modules
+RUN pip install ansible proxmoxer
+
+# Install Galaxy collections
+RUN ansible-galaxy collection install community.general community.docker
+
+# Set working directory
 WORKDIR /ansible
 
-# Commande par défaut pour vérifier la version d'Ansible
-CMD [ "ansible-playbook", "--version" ]
+# Default entrypoint
+ENTRYPOINT ["/bin/bash"]

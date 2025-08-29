@@ -1,9 +1,9 @@
-#!/bin/bash
-# Script pour exécuter les playbooks Ansible via Docker
-# Il supporte l'ajout de paramètres supplémentaires (tags, extra-vars...)
-
-# Construire l'image si nécessaire
-docker compose build
-
-# Lancer le playbook principal
-docker compose run --rm ansible ansible-playbook -i inventories/hosts.ini site.yml "$@"
+# ./docker/run.sh
+# chemin: ./docker/run.sh
+#!/usr/bin/env bash
+# Petit helper si besoin d’ouvrir un shell dans le container
+docker run --rm -it \
+  -v "$HOME/ansible-ovh-stack/ansible":/ansible \
+  -v "$HOME/.ssh":/root/.ssh:ro \
+  -w /ansible \
+  ansible-local:latest bash

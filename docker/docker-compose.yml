@@ -1,13 +1,13 @@
-version: "3.9"
-
+version: '3.9'
 services:
   ansible:
-    build: .
-    container_name: ansible-ovh
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ansible
     volumes:
-      - ../ansible:/ansible         # Monte le projet Ansible
-      - ~/.ssh:/root/.ssh:ro        # Monte les clés SSH pour Proxmox/GitHub
+      - ../ansible:/ansible:rw
+      - ~/.ssh:/root/.ssh:ro
+      - /var/run/docker.sock:/var/run/docker.sock
     working_dir: /ansible
-    tty: true                       # Pour pouvoir rester en mode interactif
-    environment:
-      ANSIBLE_HOST_KEY_CHECKING: "False" # Désactive la vérification des clés SSH
+    tty: true

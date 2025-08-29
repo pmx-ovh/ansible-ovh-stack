@@ -1,24 +1,32 @@
-# roles/proxmox-host/templates/interfaces.j2
-# Configuration bridges WAN/LAN
-
 auto lo
 iface lo inet loopback
 
-# WAN bridge
+# WAN - Proxmox public IP
 auto vmbr0
 iface vmbr0 inet static
-    address {{ public_ip }}
-    netmask 255.255.255.0
-    gateway X.X.X.1
-    bridge_ports eno1
+    address {{ proxmox_public_ip }}
+    netmask {{ proxmox_public_netmask }}
+    gateway {{ proxmox_gateway }}
+    bridge_ports {{ proxmox_wan_interface }}
     bridge_stp off
     bridge_fd 0
 
-# LAN bridge
+# LAN - DMZ for OPNsense
 auto vmbr1
 iface vmbr1 inet static
-    address {{ gateway_lan }}
-    netmask 255.255.255.0
+    address {{ proxmox_lan_ip }}
+    netmask {{ proxmox_lan_netmask }}
     bridge_ports none
     bridge_stp off
     bridge_fd 0
+
+{% if enable_vmbr2 %}
+# Internal LAN for private services
+auto vmbr2
+iface vmbr2 inet static
+    address {{ proxmox_internal_ip }}
+    netmask {{ proxmox_internal_netmask }}
+    bridge_ports none
+    bridge_stp off
+    bridge_fd 0
+{% endif %}

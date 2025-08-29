@@ -1,6 +1,3 @@
-# roles/proxmox-host/handlers/main.yml
-
+---
 - name: Restart networking
-  service:
-    name: networking
-    state: restarted
+  ansible.builtin.command: systemctl restart networking

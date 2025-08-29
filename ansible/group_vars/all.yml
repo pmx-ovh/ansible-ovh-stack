@@ -1,12 +1,66 @@
-# group_vars/all.yml
-# Variables globales
-
 ---
-public_ip: "X.X.X.X"              # Remplacer par votre IP OVH publique
-lan_network: "192.168.100.0/24"
-gateway_lan: "192.168.100.1"      # IP LAN de l'OPNsense
-ssh_user: "root"                  # Utilisateur SSH
-ssh_private_key: "~/.ssh/id_ed25519"
-proxmox_api_url: "https://proxmox.example.com:8006/api2/json"
-proxmox_user: "root@pam"
-proxmox_password: "CHANGE_ME"
+# ========================================
+# Variables globales pour tous les hôtes
+# ========================================
+
+# === Réseau Proxmox ===
+prox_bridges:
+  - name: vmbr0
+    ip: "192.99.32.41/24"
+    gateway: "192.99.32.254"
+    ports: "enp4s0"
+  - name: vmbr1
+    ip: "192.168.1.1/24"
+    ports: "none"
+  - name: vmbr2
+    ip: "10.10.1.10/24"
+    ports: "none"
+
+# Configuration du Proxmox
+proxmox_public_ip: "192.99.32.41"
+proxmox_public_netmask: "255.255.255.0"
+proxmox_gateway: "192.99.32.254"
+proxmox_wan_interface: "enp4s0"
+
+# LAN interne pour OPNsense et DMZ
+proxmox_lan_ip: "192.168.1.1"
+proxmox_lan_netmask: "255.255.255.0"
+
+# Réseau interne pour les services backend
+enable_vmbr2: true
+proxmox_internal_ip: "10.10.1.10"
+proxmox_internal_netmask: "255.255.255.0"
+
+# === VPN OPNsense ===
+vpn_network: "10.8.0.0/24"
+vpn_clients: ["your-home"]
+vpn_port: "1194"
+vpn_proto: "udp"
+vpn_server_ip: "{{ proxmox_lan_ip }}"
+vpn_client_name: "client1"
+
+# === Bastion ===
+bastion_ip: "192.168.1.13"
+
+# === HAProxy ===
+haproxy_backend_servers:
+  - name: "srv1"
+    ip: "10.10.1.12"
+    port: 80
+
+# === Docker services ===
+docker_services:
+  - name: traefik
+    network: web
+  - name: app1
+    network: lan
+
+# ========================================
+# Variables Ansible globales
+# ========================================
+
+ansible_user: root
+ansible_ssh_private_key_file: "{{ lookup('env','ANSIBLE_KEY') | default('/root/.ssh/id_rsa_wbx', true) }}"
+ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+ansible_python_interpreter: /usr/bin/python3
+

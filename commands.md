@@ -1,131 +1,63 @@
-# commands.md
+# 📖 Commandes Ansible-OVH-Stack (Production)
 
-Guide rapide pour piloter **Ansible via Docker** (aucune installation Ansible locale requise).
+# 0️⃣ Pré-requis et vérifications
+docker --version
+docker-compose --version
+ls -ld ansible docker
+ls -l setup.sh
 
-## 📦 Pré-requis
-- Docker + Docker Compose v2 installés localement.
-- Arborescence du projet :
-  ```
-  ansible-ovh-stack/
-  ├── ansible/          # playbooks, inventaire, rôles
-  └── docker/           # Dockerfile / docker-compose.yml / run.sh
-  ```
+# 1️⃣ Construire l'image Docker Ansible
+docker build -t docker-ansible:latest ./docker
 
----
+# 2️⃣ Vérifier le volume Ansible
+docker run --rm -it --entrypoint /bin/bash -v $(pwd)/ansible:/ansible -w /ansible docker-ansible:latest -c "ls -l"
 
-## 🚀 Lancement du setup depuis le bastion
-```bash
-docker build -t ansible-local:latest .
+# 3️⃣ Installer les collections Ansible nécessaires
+./setup.sh install
 
-docker run --rm -it   -v "$HOME/ansible-ovh-stack/ansible":/ansible   -v "$HOME/.ssh":/root/.ssh:ro   -w /ansible   ansible-local:latest -i inventories/hosts.ini site.yml
-```
+# 4️⃣ Test clé SSH et connectivité avant VPN
+ssh -i ~/.ssh/id_rsa_wbx root@192.99.32.41
+docker-compose -f docker/docker-compose.yml run --rm ansible ansible proxmox_group -i ansible/inventories/hosts.ini -m ping
 
-## 🚀 Lancement rapide (depuis le dossier `docker/`)
-```bash
-cd docker
-docker compose build
-./run.sh
-```
+# 5️⃣ Étapes avant VPN
+./setup.sh network
+./setup.sh bastion
+ssh -J root@192.99.32.41 root@192.168.1.10
+docker-compose -f docker/docker-compose.yml run --rm ansible ansible bastion_group -i ansible/inventories/hosts.ini -m ping
 
----
+# 6️⃣ Étapes de configuration VPN
+./setup.sh opnsense
+docker-compose -f docker/docker-compose.yml run --rm ansible ansible opnsense_group -i ansible/inventories/hosts.ini -m ping
+docker-compose -f docker/docker-compose.yml run --rm ansible ansible haproxy_group -i ansible/inventories/hosts.ini -m ping
+docker-compose -f docker/docker-compose.yml run --rm ansible ansible services_group -i ansible/inventories/hosts.ini -m ping
 
-## ▶️ Exécuter le playbook manuellement (sans script)
-```bash
-cd docker
-docker compose run --rm ansible
-```
-> L’entrypoint du service `ansible` est déjà `ansible-playbook -i inventories/hosts.ini site.yml`.
+# 7️⃣ Étapes après VPN
+./setup.sh haproxy
+./setup.sh services
+docker-compose -f docker/docker-compose.yml run --rm ansible ansible all -i ansible/inventories/hosts.ini -m ping
 
-### Exemples utiles
-- Mode check (dry-run) + verbose :
-  ```bash
-  cd docker
-  docker compose run --rm ansible --check -vv
-  ```
+# 8️⃣ Exemples d’utilisation de setup.sh avec différents tags
+# - Appliquer uniquement la configuration réseau
+SSH_KEY=~/.ssh/id_rsa_wbx ./setup.sh network
 
-- Passer des variables à la volée :
-  ```bash
-  cd docker
-  docker compose run --rm ansible \
-    --extra-vars 'proxmox_api_password=MY_SECRET ovh_public_ip=51.68.x.y'
-  ```
+# - Déployer uniquement le bastion
+SSH_KEY=~/.ssh/id_rsa_wbx ./setup.sh bastion
 
----
+# - Déployer uniquement OPNsense et configurer le VPN
+SSH_KEY=~/.ssh/id_rsa_wbx ./setup.sh opnsense
 
-## 🧰 Commandes Ansible courantes (dans le container)
+# - Configurer uniquement HAProxy
+SSH_KEY=~/.ssh/id_rsa_wbx ./setup.sh haproxy
 
-> Pour lancer **d’autres** commandes Ansible que `ansible-playbook`, on **override l’entrypoint**.
+# - Déployer uniquement les services Docker
+SSH_KEY=~/.ssh/id_rsa_wbx ./setup.sh services
 
-- **Ping** des hôtes (module `ping`) :
-  ```bash
-  cd docker
-  docker compose run --rm --entrypoint ansible ansible \
-    -i inventories/hosts.ini all -m ping
-  ```
+# - Tout faire en une seule commande
+SSH_KEY=~/.ssh/id_rsa_wbx ./setup.sh full
 
-- **Installer/mettre à jour** les collections :
-  ```bash
-  cd docker
-  docker compose run --rm --entrypoint ansible-galaxy ansible \
-    collection install -r requirements.yml
-  ```
-
-- **Shell** interactif à l’intérieur du conteneur :
-  ```bash
-  cd docker
-  docker compose run --rm --entrypoint bash ansible
-  ```
-
----
-
-## 🔍 Débogage & vérifications
-
-- Vérifier que l’inventaire est vu :
-  ```bash
-  cd docker
-  docker compose run --rm --entrypoint ansible-inventory ansible --list
-  ```
-
-- Lancer un playbook avec logs détaillés :
-  ```bash
-  cd docker
-  docker compose run --rm ansible -vvv
-  ```
-
-- Tester la connexion SSH au Proxmox **depuis ta machine** :
-  ```bash
-  ssh root@<IP_PROXMOX>
-  ```
-
-- Vérifier depuis Ansible (ad-hoc) une commande sur Proxmox (ex: iptables) :
-  ```bash
-  cd docker
-  docker compose run --rm --entrypoint ansible ansible \
-    -i inventories/hosts.ini proxmox \
-    -m shell -a "iptables -t nat -S"
-  ```
-
----
-
-## 🧹 Nettoyage
-
-- Supprimer le conteneur éphémère (au cas où il resterait) :
-  ```bash
-  docker ps -a
-  docker rm <container_id>
-  ```
-
-- Supprimer l’image locale buildée par Compose :
-  ```bash
-  cd docker
-  docker compose down --rmi local
-  ```
-
----
-
-## 🔐 Notes sécurité
-
-- Les variables sensibles (ex: `proxmox_api_password`) peuvent être passées via `--extra-vars` ou variables d’environnement au moment de l’exécution.
-- Pense à **ne pas** commiter de secrets en clair dans `group_vars/all.yml`.
-
----
+# 🔄 Notes de prod
+# - La clé SSH prioritaire peut être passée via variable d'environnement :
+#   SSH_KEY=/path/to/key ./setup.sh network
+# - Les tests ping avant/après VPN valident la connectivité réseau.
+# - Le bastion doit être configuré avant d’accéder aux hôtes internes.
+# - Tous les chemins sont relatifs au projet ansible-ovh-stack.

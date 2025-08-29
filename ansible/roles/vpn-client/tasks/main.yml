@@ -1,0 +1,28 @@
+---
+- name: Generate CA certificate
+  community.crypto.x509_certificate:
+    path: /etc/openvpn/ca.crt
+    privatekey_path: /etc/openvpn/ca.key
+    common_name: "MyVPN CA"
+    issuer: selfsigned
+    state: present
+
+- name: Generate server certificate
+  community.crypto.x509_certificate:
+    path: /etc/openvpn/server.crt
+    privatekey_path: /etc/openvpn/server.key
+    csr_path: /etc/openvpn/server.csr
+    common_name: "vpn.server.local"
+    issuer_path: /etc/openvpn/ca.crt
+    issuer_key_path: /etc/openvpn/ca.key
+    state: present
+
+- name: Generate client certificate
+  community.crypto.x509_certificate:
+    path: /etc/openvpn/client.crt
+    privatekey_path: /etc/openvpn/client.key
+    csr_path: /etc/openvpn/client.csr
+    common_name: "vpn.client.local"
+    issuer_path: /etc/openvpn/ca.crt
+    issuer_key_path: /etc/openvpn/ca.key
+    state: present

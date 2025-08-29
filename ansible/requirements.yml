@@ -1,5 +1,5 @@
-# Collections Ansible nécessaires                                  # commentaire: fichier pour ansible-galaxy
-collections:                                                      # commentaire: liste des collections à installer
-  - name: community.general                                       # commentaire: proxmox_kvm, etc.
-  - name: ansible.posix                                           # commentaire: module sysctl
-  - name: community.docker                                        # commentaire: si tu gères Docker avec Ansible plus tard
+---
+collections:
+  - name: community.general
+  - name: ansible.posix
+  - name: community.docker

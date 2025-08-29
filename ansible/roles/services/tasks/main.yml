@@ -1,0 +1,38 @@
+---
+# ansible/roles/services/tasks/main.yml
+
+- name: Check that Docker Compose v2 is installed
+  ansible.builtin.command:
+    cmd: docker compose version
+  register: docker_compose_v2_check
+  changed_when: false
+  ignore_errors: true
+
+- name: Fail if Docker Compose v2 is not installed
+  ansible.builtin.fail:
+    msg: "Docker Compose v2 is required on this host."
+  when: docker_compose_v2_check.failed
+
+- name: Ensure services directory exists
+  ansible.builtin.file:
+    path: "{{ playbook_dir }}/../../docker"
+    state: directory
+
+- name: Build and start services with Docker Compose v2
+  community.docker.docker_compose_v2:
+    project_src: "{{ playbook_dir }}/../../docker"
+    state: present          # ensure containers are up
+    build: yes              # build images if needed
+    restarted: yes          # restart if already running
+    pull: yes               # pull latest images if available
+
+- name: Show running containers
+  ansible.builtin.command:
+    cmd: docker compose ps
+    chdir: "{{ playbook_dir }}/../../docker"
+  register: docker_ps
+  changed_when: false
+
+- name: Display Docker containers status
+  ansible.builtin.debug:
+    msg: "{{ docker_ps.stdout_lines }}"

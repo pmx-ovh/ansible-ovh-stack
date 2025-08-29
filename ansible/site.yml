@@ -1,28 +1,20 @@
-# site.yml
-# Playbook principal pour déployer tout le stack OVH sur Proxmox
-
-- name: Déploiement complet OVH Proxmox
-  hosts: proxmox
-  become: true
-  vars_files:
-    - group_vars/all.yml
+- hosts: proxmox
   roles:
-    - proxmox-host
+    - { role: proxmox-host, tags: ["network"] }
 
-- name: Configurer OPNsense
-  hosts: opnsense
-  become: true
+- hosts: bastion_group
   roles:
-    - opnsense-vm
+    - { role: bastion, tags: ["bastion"] }
 
-- name: Déployer HAProxy
-  hosts: haproxy
-  become: true
+- hosts: opnsense_group
   roles:
-    - haproxy-vm
+    - { role: opnsense, tags: ["opnsense"] }
+    - vpn-client
 
-- name: Déployer Services Traefik + Portainer
-  hosts: services
-  become: true
+- hosts: haproxy_group
   roles:
-    - services-vm
+    - { role: haproxy, tags: ["haproxy"] }
+
+- hosts: services_group
+  roles:
+    - { role: services, tags: ["services"] }

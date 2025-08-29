@@ -1,7 +1,0 @@
-# roles/haproxy-vm/handlers/main.yml
-# Handlers pour recharger HAProxy si la configuration change
-
-- name: Reload HAProxy
-  systemd:
-    name: haproxy
-    state: reloaded
