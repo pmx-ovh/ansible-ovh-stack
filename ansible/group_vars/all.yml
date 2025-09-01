@@ -1,10 +1,34 @@
 ---
+<<<<<<< HEAD
 # ========================
 # Réseau Proxmox (OVH)
 # ========================
 proxmox_public_ip: "192.99.32.41"
 proxmox_public_netmask: "255.255.255.255"
 proxmox_gateway: "192.99.32.254"
+=======
+# ========================================
+# Variables globales pour tous les hôtes
+# ========================================
+
+# === Réseau Proxmox ===
+prox_bridges:
+  - name: vmbr0
+    ip: "213.25.123.15/24"
+    gateway: "213.25.123.254"
+    ports: "enp4s0"
+  - name: vmbr1
+    ip: "192.168.1.1/24"
+    ports: "none"
+  - name: vmbr2
+    ip: "10.10.1.10/24"
+    ports: "none"
+
+# Configuration du Proxmox
+proxmox_public_ip: "213.25.123.15"
+proxmox_public_netmask: "255.255.255.0"
+proxmox_gateway: "213.25.123.254"
+>>>>>>> 5d6cea91e827a4544413e03c753466ba2816c650
 proxmox_wan_interface: "enp4s0"
 
 proxmox_lan_ip: "192.168.1.254"
