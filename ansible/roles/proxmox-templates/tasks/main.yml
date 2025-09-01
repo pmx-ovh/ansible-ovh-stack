@@ -1,0 +1,94 @@
+---
+# =======================================================
+# Role: proxmox-templates
+# Objectif: télécharger et créer les templates Proxmox via API
+# Compatible Ansible 2.18, Proxmox 8.x
+# =======================================================
+
+- name: Créer le dossier temporaire pour les templates
+  ansible.builtin.file:
+    path: /tmp/proxmox_templates
+    state: directory
+    mode: '0755'
+
+- name: Définir la liste des templates à gérer
+  set_fact:
+    templates_to_manage:
+      - name: "{{ debian_template_name }}"
+        iso_url: "{{ debian_iso_url }}"
+        iso_path: "/tmp/proxmox_templates/{{ debian_iso_local_name | default('debian.qcow2') }}"
+        vmid: 900
+        cores: 1
+        memory: 1024
+        ostype: l26
+        scsihw: virtio-scsi-pci
+        storage: "{{ proxmox_storage }}"
+        net:
+          net0: "virtio,bridge=vmbr1"
+
+      - name: "{{ opnsense_template_name }}"
+        iso_url: "{{ opnsense_iso_url }}"
+        iso_path: "/tmp/proxmox_templates/{{ opnsense_iso_local_name | default('opnsense.img.bz2') }}"
+        vmid: 901
+        cores: 2
+        memory: 2048
+        ostype: other
+        scsihw: virtio-scsi-pci
+        storage: "{{ proxmox_storage }}"
+        net:
+          net0: "virtio,bridge=vmbr0"
+          net1: "virtio,bridge=vmbr1"
+
+- name: Vérifier si les fichiers ISO existent déjà
+  ansible.builtin.stat:
+    path: "{{ item.iso_path }}"
+  loop: "{{ templates_to_manage }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: iso_check
+
+- name: Télécharger les templates si absents
+  ansible.builtin.get_url:
+    url: "{{ item.0.iso_url }}"
+    dest: "{{ item.0.iso_path }}"
+    mode: '0644'
+    force: no
+  loop: "{{ templates_to_manage | zip(iso_check.results) | list }}"
+  loop_control:
+    label: "{{ item.0.name }}"
+  when: not item.1.stat.exists
+
+- name: Créer VM pour template si elle n'existe pas
+  community.general.proxmox_kvm:
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    api_host: "{{ proxmox_api_host }}"
+    node: "{{ proxmox_node }}"
+    vmid: "{{ item.vmid }}"
+    name: "{{ item.name }}"
+    cores: "{{ item.cores }}"
+    memory: "{{ item.memory }}"
+    ostype: "{{ item.ostype }}"
+    scsihw: "{{ item.scsihw }}"
+    storage: "{{ item.storage }}"
+    net: "{{ item.net }}"
+    state: present
+  loop: "{{ templates_to_manage }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: created_vms
+
+- name: Transformer la VM en template
+  community.general.proxmox_kvm:
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    api_host: "{{ proxmox_api_host }}"
+    node: "{{ proxmox_node }}"
+    vmid: "{{ item.vmid }}"
+    template: true
+    state: present
+  loop: "{{ templates_to_manage }}"
+  loop_control:
+    label: "{{ item.name }}"

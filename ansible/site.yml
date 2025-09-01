@@ -1,20 +1,91 @@
-- hosts: proxmox
-  roles:
-    - { role: proxmox-host, tags: ["network"] }
+---
+# === Playbook principal ===
 
-- hosts: bastion_group
-  roles:
-    - { role: bastion, tags: ["bastion"] }
+# --- 0) Installation collections / vérifications ---
+- name: Vérification installation Ansible & collections
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tags: [install]
+  tasks:
+    - name: Message pré-install
+      ansible.builtin.debug:
+        msg: "Phase INSTALL: vérifier conteneur Ansible et collections."
+    - name: Installer collections Ansible si nécessaire
+      ansible.builtin.command:
+        cmd: >
+          ansible-galaxy collection install community.general community.docker || true
+      changed_when: false
 
-- hosts: opnsense_group
+# --- 1) Upload / Vérification templates Proxmox ---
+- name: Upload / Vérification templates Proxmox
+  hosts: localhost
+  connection: local
+  become: true
+  gather_facts: false
+  tags: [templates]
   roles:
-    - { role: opnsense, tags: ["opnsense"] }
-    - vpn-client
+    - role: proxmox-templates   # <-- rôle dédié aux templates
 
-- hosts: haproxy_group
+# --- 2) Configuration réseau Proxmox et bridges ---
+- name: Config réseau et bridges Proxmox
+  hosts: proxmox
+  become: true
+  gather_facts: true
+  tags: [network, templates]
   roles:
-    - { role: haproxy, tags: ["haproxy"] }
+    - role: proxmox-host
+      tags: [network, templates]
 
-- hosts: services_group
+# --- 3) Provision VMs Proxmox via API ---
+- name: Provision VMs Proxmox (cloud-init)
+  hosts: localhost
+  connection: local
+  become: true
+  gather_facts: false
+  tags: [provision]
   roles:
-    - { role: services, tags: ["services"] }
+    - role: proxmox-vm          # <-- rôle uniquement pour VMs clonées
+      tags: [provision]
+
+# --- 4) Déploiement Bastion ---
+- name: Déployer bastion (fail2ban, UFW, SSH keys)
+  hosts: bastion_group
+  become: true
+  gather_facts: true
+  tags: [bastion]
+  roles:
+    - role: bastion
+      tags: [bastion]
+
+# --- 5) Déploiement OPNsense (firewall, VPN) ---
+- name: Déployer OPNsense (config + VPN)
+  hosts: opnsense_group
+  become: true
+  gather_facts: true
+  tags: [opnsense, vpn]
+  roles:
+    - role: opnsense
+      tags: [opnsense]
+    - role: vpn-client
+      tags: [vpn]
+
+# --- 6) Déploiement HAProxy ---
+- name: Config HAProxy pour flux entrants
+  hosts: haproxy_group
+  become: true
+  gather_facts: true
+  tags: [haproxy]
+  roles:
+    - role: haproxy
+      tags: [haproxy]
+
+# --- 7) Déploiement services Docker (Traefik, Portainer, Wordpress) ---
+- name: Déployer services Docker
+  hosts: services_group
+  become: true
+  gather_facts: true
+  tags: [services]
+  roles:
+    - role: services
+      tags: [services]

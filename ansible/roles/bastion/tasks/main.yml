@@ -1,38 +1,30 @@
 ---
-- name: Install security packages
+- name: Assurer la présence de la clé SSH du bastion
+  ansible.builtin.authorized_key:
+    user: "{{ bastion_user }}"
+    key: "{{ bastion_ssh_pub_key }}"
+    state: present
+
+- name: Installer utilitaires de base (fail2ban, ufw, htop)
   ansible.builtin.apt:
     name:
       - fail2ban
       - ufw
+      - htop
     state: present
-    update_cache: true
-  tags: [bastion]
+    update_cache: yes
 
-- name: Enable UFW and allow SSH
-  community.general.ufw:
-    rule: allow
-    port: "22"
-    proto: tcp
-  tags: [bastion]
-
-- name: Enable UFW
-  community.general.ufw:
+- name: Configurer UFW par défaut
+  ansible.builtin.ufw:
     state: enabled
-  tags: [bastion]
+    policy: "{{ bastion_ufw_default_incoming }}/{{ bastion_ufw_default_outgoing }}"
 
-- name: Deploy SSH hardening config
-  ansible.builtin.copy:
-    src: sshd_config
-    dest: /etc/ssh/sshd_config
-    owner: root
-    group: root
-    mode: '0644'
-  notify: Restart SSH
-  tags: [bastion]
+- name: Autoriser ports spécifiques dans UFW
+  ansible.builtin.ufw:
+    rule: allow
+    port: "{{ item }}"
+  loop: "{{ bastion_firewall_allowed_ports }}"
 
-- name: Ensure root SSH key is installed
-  ansible.builtin.authorized_key:
-    user: root
-    state: present
-    key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
-  tags: [bastion]
+- name: Vérifier connectivité LAN et Internet
+  ansible.builtin.ping:
+    data: "ping test"

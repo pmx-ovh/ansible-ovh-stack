@@ -1,0 +1,18 @@
+---
+# =======================================================
+# Defaults pour proxmox-templates
+# =======================================================
+
+# === Templates Debian Cloud ===
+debian_template_name: "debian-cloud-template"
+debian_iso_url: "https://cdimage.debian.org/cdimage/cloud/bullseye/latest/debian-11-genericcloud-amd64.qcow2"
+debian_iso_local_path: "/tmp/proxmox_templates/debian-11-genericcloud-amd64.qcow2"
+
+# === Templates OPNsense ===
+opnsense_template_name: "opnsense-template"
+opnsense_iso_url: "https://mirror.ams1.nl.leaseweb.net/opnsense/releases/25.7/OPNsense-25.7-nano-amd64.img.bz2"
+opnsense_iso_local_path: "/tmp/proxmox_templates/OPNsense-25.7-nano-amd64.img.bz2"
+
+# === Paramètres Proxmox par défaut ===
+proxmox_node: "pve"            # Nom du noeud Proxmox
+proxmox_storage: "local-lvm"    # Storage par défaut pour les templates

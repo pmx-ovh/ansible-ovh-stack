@@ -1,66 +1,164 @@
 ---
-# ========================================
-# Variables globales pour tous les hôtes
-# ========================================
-
-# === Réseau Proxmox ===
-prox_bridges:
-  - name: vmbr0
-    ip: "192.99.32.41/24"
-    gateway: "192.99.32.254"
-    ports: "enp4s0"
-  - name: vmbr1
-    ip: "192.168.1.1/24"
-    ports: "none"
-  - name: vmbr2
-    ip: "10.10.1.10/24"
-    ports: "none"
-
-# Configuration du Proxmox
+# ========================
+# Réseau Proxmox (OVH)
+# ========================
 proxmox_public_ip: "192.99.32.41"
-proxmox_public_netmask: "255.255.255.0"
+proxmox_public_netmask: "255.255.255.255"
 proxmox_gateway: "192.99.32.254"
 proxmox_wan_interface: "enp4s0"
 
-# LAN interne pour OPNsense et DMZ
-proxmox_lan_ip: "192.168.1.1"
+proxmox_lan_ip: "192.168.1.254"
 proxmox_lan_netmask: "255.255.255.0"
 
-# Réseau interne pour les services backend
 enable_vmbr2: true
 proxmox_internal_ip: "10.10.1.10"
 proxmox_internal_netmask: "255.255.255.0"
 
-# === VPN OPNsense ===
+lan_network: "192.168.1.0/24"
+opnsense_wan_bridge: "vmbr1"
+wan_public_iface: "vmbr0"
+
+# ========================
+# Proxmox API & Config
+# ========================
+proxmox_api_host: "ns515276.ip-192-99-32.net"
+proxmox_api_user: "root@pam"
+proxmox_api_token_id: "pmx-ansible"
+proxmox_api_token_secret: "5dbf9cdc-cc07-41ba-8c58-4a0414dc4610"
+proxmox_node: "ns515276"
+proxmox_storage: "local-lvm"
+
+# ========================
+# Cloud-Init defaults
+# ========================
+cloudinit_user: "admin"
+cloudinit_password: "ChangeMe123!"
+ssh_public_key: "{{ lookup('file','~/.ssh/id_rsa_wbx.pub') }}"
+
+# ========================
+# VMs à provisionner
+# ========================
+proxmox_vms:
+  - name: "opnsense"
+    vmid: 106
+    template: "opnsense-template"
+    memory: 2048
+    cores: 2
+    disk_size: "8G"
+    net0: "virtio,bridge=vmbr0"
+    net1: "virtio,bridge=vmbr1"
+    ipconfig0: "ip=dhcp"
+    ipconfig1: "ip=192.168.1.2/24"
+    tags: ["firewall"]
+
+  - name: "bastion"
+    vmid: 102
+    template: "debian-cloud-template"
+    memory: 1024
+    cores: 1
+    disk_size: "10G"
+    net0: "virtio,bridge=vmbr1"
+    ipconfig0: "ip=192.168.1.10/24,gw=192.168.1.1"
+    tags: ["bastion"]
+
+  - name: "haproxy"
+    vmid: 103
+    template: "debian-cloud-template"
+    memory: 1024
+    cores: 1
+    disk_size: "10G"
+    net0: "virtio,bridge=vmbr1"
+    ipconfig0: "ip=192.168.1.20/24,gw=192.168.1.1"
+    tags: ["haproxy"]
+
+  - name: "docker-manager"
+    vmid: 104
+    template: "debian-cloud-template"
+    memory: 2048
+    cores: 2
+    disk_size: "20G"
+    net0: "virtio,bridge=vmbr1"
+    ipconfig0: "ip=192.168.1.30/24,gw=192.168.1.1"
+    tags: ["docker"]
+
+# ========================
+# VPN / OPNsense
+# ========================
 vpn_network: "10.8.0.0/24"
-vpn_clients: ["your-home"]
+vpn_clients: ["home-client"]
 vpn_port: "1194"
 vpn_proto: "udp"
 vpn_server_ip: "{{ proxmox_lan_ip }}"
 vpn_client_name: "client1"
 
-# === Bastion ===
-bastion_ip: "192.168.1.13"
+# ========================
+# Bastion
+# ========================
+bastion_ip: "192.168.1.10"
 
-# === HAProxy ===
+# ========================
+# HAProxy backend
+# ========================
 haproxy_backend_servers:
-  - name: "srv1"
-    ip: "10.10.1.12"
+  - name: "services"
+    ip: "192.168.1.30"
     port: 80
 
-# === Docker services ===
+# ========================
+# Docker / Services
+# ========================
+traefik_acme_email: "admin@example.com"
+
 docker_services:
   - name: traefik
-    network: web
-  - name: app1
-    network: lan
+    image: traefik:v3.0
+    networks: ["proxy"]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/traefik/traefik.yml:/traefik.yml
+      - /opt/traefik/acme.json:/acme.json
+    labels:
+      - "traefik.enable=true"
+    command:
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.le.acme.tlschallenge=true"
+      - "--certificatesresolvers.le.acme.email={{ traefik_acme_email }}"
+      - "--certificatesresolvers.le.acme.storage=/acme.json"
 
-# ========================================
-# Variables Ansible globales
-# ========================================
+  - name: portainer
+    image: portainer/portainer-ce:latest
+    networks: ["proxy"]
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/portainer/data:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.portainer.rule=Host(`portainer.example.com`)"
+      - "traefik.http.services.portainer.loadbalancer.server.port=9000"
+
+  - name: wordpress
+    image: wordpress:6.4-apache
+    networks: ["proxy"]
+    ports:
+      - "8080:80"
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wpuser
+      WORDPRESS_DB_PASSWORD: wppassword
+      WORDPRESS_DB_NAME: wpdb
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wordpress.rule=Host(`wordpress.example.com`)"
+      - "traefik.http.services.wordpress.loadbalancer.server.port=80"
 
 ansible_user: root
-ansible_ssh_private_key_file: "{{ lookup('env','ANSIBLE_KEY') | default('/root/.ssh/id_rsa_wbx', true) }}"
+ansible_ssh_private_key_file: "{{ lookup('env','SSH_KEY_PATH') }}"
 ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
 ansible_python_interpreter: /usr/bin/python3
-

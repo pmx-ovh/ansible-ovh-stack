@@ -1,0 +1,11 @@
+---
+# Paramètres par défaut pour le bastion
+bastion_user: root
+bastion_ssh_pub_key: "{{ lookup('file', ssh_public_key) }}"
+bastion_firewall_allowed_ports:
+  - 22
+  - 80
+  - 443
+  - 1194  # OpenVPN si nécessaire
+bastion_ufw_default_incoming: deny
+bastion_ufw_default_outgoing: allow

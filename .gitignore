@@ -1,0 +1,15 @@
+# Ignorer tous les fichiers .log
+*.log
+
+# Ignorer un fichier précis
+secret.txt
+
+# Ignorer tout un dossier
+temp/
+build/
+
+# Ignorer tous les fichiers .env
+*.env
+
+*liste_content.txt
+*liste.txt

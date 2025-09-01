@@ -1,5 +1,6 @@
-# ./ansible/roles/services/templates/traefik.yml.j2
-# chemin: ./ansible/roles/services/templates/traefik.yml.j2
+api:
+  dashboard: true
+
 entryPoints:
   web:
     address: ":80"
@@ -10,6 +11,9 @@ providers:
   docker:
     exposedByDefault: false
 
-api:
-  dashboard: true
-  insecure: false
+certificatesResolvers:
+  le:
+    acme:
+      email: "{{ traefik_acme_email }}"
+      storage: /acme.json
+      tlsChallenge: {}

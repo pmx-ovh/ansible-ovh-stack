@@ -20,9 +20,9 @@
   <openvpn>
     <server>
       <vpnid>1</vpnid>
-      <protocol>udp</protocol>
+      <protocol>{{ vpn_proto }}</protocol>
       <dev>tun</dev>
-      <local_port>1194</local_port>
+      <local_port>{{ vpn_port }}</local_port>
       <description>Remote VPN</description>
       <tunnel_network>{{ vpn_network }}</tunnel_network>
     </server>
@@ -31,8 +31,8 @@
   <firewall>
     <rule>
       <interface>wan</interface>
-      <protocol>udp</protocol>
-      <destination_port>1194</destination_port>
+      <protocol>{{ vpn_proto }}</protocol>
+      <destination_port>{{ vpn_port }}</destination_port>
       <action>pass</action>
     </rule>
   </firewall>

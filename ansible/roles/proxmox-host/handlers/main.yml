@@ -1,3 +1,5 @@
 ---
 - name: Restart networking
-  ansible.builtin.command: systemctl restart networking
+  ansible.builtin.service:
+    name: networking
+    state: restarted

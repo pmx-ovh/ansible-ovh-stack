@@ -1,19 +1,40 @@
-version: '3.8'
+version: '3.9'
 services:
-  traefik:
-    image: traefik:v2.9
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--entrypoints.web.address=:80"
+{% for service in docker_services %}
+  {{ service.name }}:
+    image: {{ service.image }}
+{% if service.ports is defined %}
     ports:
-      - "80:80"
-      - "8080:8080"
+{% for port in service.ports %}
+      - "{{ port }}"
+{% endfor %}
+{% endif %}
+{% if service.volumes is defined %}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-
-  app:
-    image: nginx:alpine
+{% for vol in service.volumes %}
+      - "{{ vol }}"
+{% endfor %}
+{% endif %}
+{% if service.labels is defined %}
     labels:
-      - "traefik.http.routers.app.rule=Host(`app.local`)"
-      - "traefik.http.services.app.loadbalancer.server.port=80"
+{% for label in service.labels %}
+      - "{{ label }}"
+{% endfor %}
+{% endif %}
+{% if service.command is defined %}
+    command:
+{% for cmd in service.command %}
+      - "{{ cmd }}"
+{% endfor %}
+{% endif %}
+{% if service.networks is defined %}
+    networks:
+{% for net in service.networks %}
+      - {{ net }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+
+networks:
+  proxy:
+    driver: bridge

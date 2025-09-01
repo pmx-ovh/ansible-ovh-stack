@@ -1,0 +1,63 @@
+# ==========================
+# Proxmox API / Node
+# ==========================
+
+# On commente l'ancien proxmox_host codé en dur
+# proxmox_host: "192.168.1.100"
+
+# Utilisation des variables globales
+# Il faut s'assurer que group_vars/all.yml définit bien proxmox_api_host, proxmox_api_user et proxmox_api_token_secret
+proxmox_host: "{{ proxmox_api_host }}"
+proxmox_user: "{{ proxmox_api_user }}"
+proxmox_password: "{{ proxmox_api_token_secret }}"
+pmx_api_token_id: "{{ proxmox_api_token_id }}"
+pmx_node: "{{ proxmox_node | default('pve') }}"
+pmx_storage: "{{ proxmox_storage | default('local-lvm') }}"
+
+ssh_pub_key_path: "~/.ssh/id_rsa.pub"
+
+# ==========================
+# Liste des VMs à provisionner
+# ==========================
+proxmox_vms:
+  - name: "opnsense"
+    vmid: 106
+    template: "opnsense-template"
+    memory: 2048
+    cores: 2
+    disk_size: "8G"
+    net0: "virtio,bridge=vmbr0"
+    net1: "virtio,bridge=vmbr1"
+    ipconfig0: "ip=dhcp"
+    ipconfig1: "ip=192.168.1.2/24"
+    tags: ["firewall"]
+
+  - name: "bastion"
+    vmid: 102
+    template: "debian-cloud-template"
+    memory: 1024
+    cores: 1
+    disk_size: "10G"
+    net0: "virtio,bridge=vmbr1"
+    ipconfig0: "ip=192.168.1.10/24,gw=192.168.1.1"
+    tags: ["bastion"]
+
+  - name: "haproxy"
+    vmid: 103
+    template: "debian-cloud-template"
+    memory: 1024
+    cores: 1
+    disk_size: "10G"
+    net0: "virtio,bridge=vmbr1"
+    ipconfig0: "ip=192.168.1.20/24,gw=192.168.1.1"
+    tags: ["haproxy"]
+
+  - name: "docker-manager"
+    vmid: 104
+    template: "debian-cloud-template"
+    memory: 2048
+    cores: 2
+    disk_size: "20G"
+    net0: "virtio,bridge=vmbr1"
+    ipconfig0: "ip=192.168.1.30/24,gw=192.168.1.1"
+    tags: ["docker"]

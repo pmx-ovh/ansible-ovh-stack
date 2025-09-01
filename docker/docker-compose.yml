@@ -1,13 +1,19 @@
-version: '3.9'
 services:
   ansible:
+    image: docker-ansible:latest
+    container_name: ansible
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: ansible
     volumes:
-      - ../ansible:/ansible:rw
-      - ~/.ssh:/root/.ssh:ro
+      - ${PWD}/ansible:/ansible:rw
+      - ${SSH_KEY_PATH}:/root/.ssh/id_rsa_wbx:ro
       - /var/run/docker.sock:/var/run/docker.sock
-    working_dir: /ansible
+      - docker_proxmox_templates:/tmp/proxmox_templates:rw
+    environment:
+      ANSIBLE_FORCE_COLOR: "true"
+      PYTHONUNBUFFERED: "1"
     tty: true
+
+volumes:
+  docker_proxmox_templates:

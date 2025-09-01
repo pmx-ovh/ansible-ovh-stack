@@ -1,13 +1,24 @@
 ---
-- name: Generate CA certificate
+- name: Créer répertoire OpenVPN
+  ansible.builtin.file:
+    path: /etc/openvpn
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Générer certificat CA
   community.crypto.x509_certificate:
     path: /etc/openvpn/ca.crt
     privatekey_path: /etc/openvpn/ca.key
-    common_name: "MyVPN CA"
+    common_name: "VPN-CA"
     issuer: selfsigned
     state: present
+    owner: root
+    group: root
+    mode: '0600'
 
-- name: Generate server certificate
+- name: Générer certificat serveur
   community.crypto.x509_certificate:
     path: /etc/openvpn/server.crt
     privatekey_path: /etc/openvpn/server.key
@@ -16,13 +27,27 @@
     issuer_path: /etc/openvpn/ca.crt
     issuer_key_path: /etc/openvpn/ca.key
     state: present
+    owner: root
+    group: root
+    mode: '0600'
 
-- name: Generate client certificate
+- name: Générer certificat client
   community.crypto.x509_certificate:
-    path: /etc/openvpn/client.crt
-    privatekey_path: /etc/openvpn/client.key
-    csr_path: /etc/openvpn/client.csr
-    common_name: "vpn.client.local"
+    path: "/etc/openvpn/{{ vpn_client_name }}.crt"
+    privatekey_path: "/etc/openvpn/{{ vpn_client_name }}.key"
+    csr_path: "/etc/openvpn/{{ vpn_client_name }}.csr"
+    common_name: "{{ vpn_client_name }}"
     issuer_path: /etc/openvpn/ca.crt
     issuer_key_path: /etc/openvpn/ca.key
     state: present
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Générer fichier de configuration client OpenVPN
+  ansible.builtin.template:
+    src: client.ovpn.j2
+    dest: "/etc/openvpn/{{ vpn_client_name }}.ovpn"
+    owner: root
+    group: root
+    mode: '0600'

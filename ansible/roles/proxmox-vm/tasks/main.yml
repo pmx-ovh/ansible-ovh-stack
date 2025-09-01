@@ -1,0 +1,80 @@
+---
+# =============================================
+# Role: proxmox-vm
+# Crée ou met à jour les VMs à partir des templates
+# Compatible Ansible 2.18 et Proxmox 8.x
+# API-only (token)
+# =============================================
+
+- name: "Lister les storages disponibles via API"
+  uri:
+    url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ proxmox_node }}/storage"
+    method: GET
+    user: "{{ proxmox_api_user }}"
+    headers:
+      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
+    validate_certs: no
+  register: proxmox_storage_api
+
+- name: "Fail si aucun storage détecté"
+  fail:
+    msg: "Impossible de détecter un storage disponible sur Proxmox. Vérifiez vos droits API ou créez un storage (ex: local)."
+  when: proxmox_storage_api.json.data | length == 0
+
+- name: "Debug | Retour API Proxmox storages"
+  debug:
+    var: proxmox_storage_api.json.data
+
+- name: "Déterminer le storage par défaut (local ou premier trouvé)"
+  set_fact:
+    proxmox_default_storage: >-
+      {{
+        (proxmox_storage_api.json.data
+        | selectattr('storage', 'match', '^local')
+        | map(attribute='storage')
+        | first)
+        | default(proxmox_storage_api.json.data[0].storage)
+      }}
+
+- name: "Debug | Storage par défaut choisi"
+  debug:
+    var: proxmox_default_storage
+
+- name: "Créer ou mettre à jour les VMs Proxmox"
+  community.general.proxmox_kvm:
+    api_host: "{{ proxmox_api_host }}"
+    api_user: "{{ proxmox_api_user }}"
+    api_token_id: "{{ proxmox_api_token_id }}"
+    api_token_secret: "{{ proxmox_api_token_secret }}"
+    node: "{{ proxmox_node }}"
+    vmid: "{{ item.vmid }}"
+    name: "{{ item.name }}"
+    memory: "{{ item.memory }}"
+    cores: "{{ item.cores }}"
+    sockets: 1
+    # Clone depuis le template si la VM n'existe pas
+    clone: "{{ item.template }}"
+    full: yes
+    storage: "{{ proxmox_default_storage }}"
+    pool: "{{ proxmox_vm_defaults.pool | default(omit) }}"
+    timeout: 900
+    sata:
+      0: "{{ item.disk_size }}"
+    ide:
+      ide2: "{{ proxmox_default_storage }}:cloudinit"
+    net:
+      net0: "{{ item.net0 }}"
+      net1: "{{ item.net1 | default(omit) }}"
+    ipconfig:
+      ipconfig0: "{{ item.ipconfig0 }}"
+      ipconfig1: "{{ item.ipconfig1 | default(omit) }}"
+    tags: "{{ item.tags | default(omit) }}"
+    state: present
+    force: no
+  loop: "{{ proxmox_vms }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: "Debug | Liste des VMs créées ou mises à jour"
+  ansible.builtin.debug:
+    var: proxmox_vms

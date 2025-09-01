@@ -1,7 +1,10 @@
+# Fichier généré par Ansible
 auto lo
 iface lo inet loopback
 
-# WAN - Proxmox public IP
+auto {{ proxmox_wan_interface }}
+iface {{ proxmox_wan_interface }} inet manual
+
 auto vmbr0
 iface vmbr0 inet static
     address {{ proxmox_public_ip }}
@@ -11,7 +14,6 @@ iface vmbr0 inet static
     bridge_stp off
     bridge_fd 0
 
-# LAN - DMZ for OPNsense
 auto vmbr1
 iface vmbr1 inet static
     address {{ proxmox_lan_ip }}
@@ -21,7 +23,6 @@ iface vmbr1 inet static
     bridge_fd 0
 
 {% if enable_vmbr2 %}
-# Internal LAN for private services
 auto vmbr2
 iface vmbr2 inet static
     address {{ proxmox_internal_ip }}

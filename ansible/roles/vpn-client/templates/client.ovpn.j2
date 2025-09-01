@@ -12,11 +12,11 @@ auth SHA256
 comp-lzo
 verb 3
 <ca>
-{{ lookup('file', '/etc/openvpn/ca.crt') }}
+{{ lookup('file','/etc/openvpn/ca.crt') }}
 </ca>
 <cert>
-{{ lookup('file', '/etc/openvpn/{{ vpn_client_name }}.crt') }}
+{{ lookup('file','/etc/openvpn/' + vpn_client_name + '.crt') }}
 </cert>
 <key>
-{{ lookup('file', '/etc/openvpn/{{ vpn_client_name }}.key') }}
+{{ lookup('file','/etc/openvpn/' + vpn_client_name + '.key') }}
 </key>

@@ -1,32 +1,35 @@
+# === Dockerfile pour Ansible-OVH-Stack ===
 FROM python:3.11-slim
 
-# Install system dependencies
+# === Install system dependencies ===
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        bash \
         sshpass \
-        ssh \
+        openssh-client \
         git \
         curl \
         vim \
         bridge-utils \
         docker.io \
-        && rm -rf /var/lib/apt/lists/*
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Create a virtualenv for Ansible
+# === Create Python virtual environment for Ansible ===
 RUN python3 -m venv /opt/ansible-venv
-ENV PATH="/opt/ansible-venv/bin:$PATH"
 
-# Upgrade pip
-RUN pip install --upgrade pip
+# Upgrade pip and install Ansible + proxmoxer in venv
+RUN /opt/ansible-venv/bin/pip install --no-cache-dir --upgrade pip \
+    && /opt/ansible-venv/bin/pip install --no-cache-dir "ansible>=8.6.1" proxmoxer urllib3 certifi requests
 
-# Install Ansible and Python modules
-RUN pip install ansible proxmoxer
+# === Add venv to PATH for all sessions ===
+ENV PATH="/opt/ansible-venv/bin:${PATH}"
 
-# Install Galaxy collections
-RUN ansible-galaxy collection install community.general community.docker
+# === Install common Ansible collections ===
+RUN ansible-galaxy collection install community.general community.docker || true
 
-# Set working directory
+# === Working directory ===
 WORKDIR /ansible
 
-# Default entrypoint
-ENTRYPOINT ["/bin/bash"]
+# === Default command ===
+CMD ["/bin/bash"]

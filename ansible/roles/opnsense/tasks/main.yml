@@ -1,5 +1,5 @@
 ---
-- name: Deploy OPNsense configuration
+- name: Déployer configuration OPNsense
   ansible.builtin.template:
     src: config.xml.j2
     dest: /conf/config.xml
@@ -8,6 +8,5 @@
     mode: '0600'
   tags: [opnsense]
 
-- name: Restart OPNsense to apply config
+- name: Redémarrer OPNsense pour appliquer la config
   ansible.builtin.command: /etc/rc.restart_all
-  tags: [opnsense]

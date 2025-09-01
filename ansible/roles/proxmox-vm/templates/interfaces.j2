@@ -1,0 +1,13 @@
+# === interfaces.j2 ===
+auto lo
+iface lo inet loopback
+
+{% for intf in interfaces %}
+auto {{ intf.name }}
+iface {{ intf.name }} inet static
+    address {{ intf.address }}
+    netmask {{ intf.netmask }}
+{% if intf.gateway is defined %}
+    gateway {{ intf.gateway }}
+{% endif %}
+{% endfor %}
