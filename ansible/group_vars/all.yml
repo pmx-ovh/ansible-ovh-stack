@@ -6,8 +6,8 @@
 # === Réseau Proxmox ===
 prox_bridges:
   - name: vmbr0
-    ip: "192.99.32.41/24"
-    gateway: "192.99.32.254"
+    ip: "213.25.123.15/24"
+    gateway: "213.25.123.254"
     ports: "enp4s0"
   - name: vmbr1
     ip: "192.168.1.1/24"
@@ -17,9 +17,9 @@ prox_bridges:
     ports: "none"
 
 # Configuration du Proxmox
-proxmox_public_ip: "192.99.32.41"
+proxmox_public_ip: "213.25.123.15"
 proxmox_public_netmask: "255.255.255.0"
-proxmox_gateway: "192.99.32.254"
+proxmox_gateway: "213.25.123.254"
 proxmox_wan_interface: "enp4s0"
 
 # LAN interne pour OPNsense et DMZ
