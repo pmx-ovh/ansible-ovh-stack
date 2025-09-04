@@ -46,12 +46,12 @@ if [[ "${PHASE}" != "network" && "${PHASE}" != "install" && "${PHASE}" != "provi
     JUMP_ARGS="-e ansible_ssh_common_args='-o StrictHostKeyChecking=no -o ProxyJump=root@192.99.32.41'"
   fi
 fi
-
+echo ">>> DOCKER_CMD: ${DOCKER_CMD}"
 # =========================================
 # Lancer Ansible selon la phase
 # =========================================
 case "${PHASE}" in
-  install)
+  version)
     echo "[INFO] Vérification d’Ansible et des collections..."
     ${DOCKER_CMD} ansible --version
     ;;

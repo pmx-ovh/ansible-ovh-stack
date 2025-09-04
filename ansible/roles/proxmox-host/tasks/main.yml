@@ -23,7 +23,7 @@
 # ==============================================
 # Déploiement configuration réseau
 # ==============================================
-- name: Déployer configuration réseau
+- name: Déployer les interfeces réseau
   ansible.builtin.template:
     src: interfaces.j2
     dest: /etc/network/interfaces
@@ -31,6 +31,7 @@
     group: root
     mode: '0644'
   notify: Restart networking
+
 
 # ==============================================
 # Dépôts et mise à jour
@@ -59,77 +60,16 @@
       - ifupdown2
       - htop
       - vim
+      - bzip2
+      - pv
       - bridge-utils
+      - gzip
+      - wget
+      - curl
+      - gnupg
+      - unzip
+      - expect 
+      - socat 
     state: present
+    update_cache: yes
 
-# ==============================================
-# Création des templates si absent
-# ==============================================
-- name: Vérifier template Debian Cloud
-  community.general.proxmox_kvm:
-    api_user: "{{ proxmox_api_user }}"
-    api_token_id: "{{ proxmox_api_token_id }}"
-    api_token_secret: "{{ proxmox_api_token_secret }}"
-    api_host: "{{ proxmox_api_host }}"
-    node: "{{ proxmox_node }}"
-    vmid: 9000
-    state: info
-  register: debian_template_check
-  failed_when: false
-
-- name: Créer template Debian Cloud si absent
-  community.general.proxmox_kvm:
-    api_user: "{{ proxmox_api_user }}"
-    api_token_id: "{{ proxmox_api_token_id }}"
-    api_token_secret: "{{ proxmox_api_token_secret }}"
-    api_host: "{{ proxmox_api_host }}"
-    node: "{{ proxmox_node }}"
-    vmid: 9000
-    name: debian-cloud-template
-    memory: 1024
-    cores: 1
-    net:
-      net0: virtio,bridge=vmbr1
-    sata:
-      0: 10G
-    ide:
-      ide2: "{{ proxmox_storage }}:cloudinit"
-    boot: c
-    bootdisk: sata0
-    state: present
-  when: debian_template_check.failed or debian_template_check.msg is search("VM does not exist")
-
-- name: Vérifier template OPNsense
-  community.general.proxmox_kvm:
-    api_user: "{{ proxmox_api_user }}"
-    api_token_id: "{{ proxmox_api_token_id }}"
-    api_token_secret: "{{ proxmox_api_token_secret }}"
-    api_host: "{{ proxmox_api_host }}"
-    node: "{{ proxmox_node }}"
-    vmid: 9001
-    state: info
-  register: opnsense_template_check
-  failed_when: false
-
-- name: Créer template OPNsense si absent
-  community.general.proxmox_kvm:
-    api_user: "{{ proxmox_api_user }}"
-    api_token_id: "{{ proxmox_api_token_id }}"
-    api_token_secret: "{{ proxmox_api_token_secret }}"
-    api_host: "{{ proxmox_api_host }}"
-    node: "{{ proxmox_node }}"
-    vmid: 9001
-    name: opnsense-template
-    memory: 2048
-    cores: 2
-    net:
-      net0: virtio,bridge=vmbr0
-      net1: virtio,bridge=vmbr1
-    sata:
-      0: 8G
-    ide:
-      ide2: "{{ proxmox_storage }}:cloudinit"
-    boot: c
-    bootdisk: sata0
-    state: present
-  when: opnsense_template_check.failed or opnsense_template_check.msg is search("VM does not exist")

@@ -26,7 +26,7 @@ RUN /opt/ansible-venv/bin/pip install --no-cache-dir --upgrade pip \
 ENV PATH="/opt/ansible-venv/bin:${PATH}"
 
 # === Install common Ansible collections ===
-RUN ansible-galaxy collection install community.general community.docker || true
+RUN ansible-galaxy collection install community.general community.docker community.proxmox || true
 
 # === Working directory ===
 WORKDIR /ansible

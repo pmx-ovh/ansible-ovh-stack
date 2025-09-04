@@ -1,80 +1,131 @@
 ---
-# =============================================
-# Role: proxmox-vm
-# Crée ou met à jour les VMs à partir des templates
-# Compatible Ansible 2.18 et Proxmox 8.x
-# API-only (token)
-# =============================================
+# ==========================================
+# 0. Vérifier / générer clé SSH du bastion
+# ==========================================
+- name: Vérifier si la clé SSH du bastion existe
+  stat:
+    path: "{{ bastion_key_path }}"
+  register: bastion_key_stat
 
-- name: "Lister les storages disponibles via API"
-  uri:
-    url: "https://{{ proxmox_api_host }}:8006/api2/json/nodes/{{ proxmox_node }}/storage"
-    method: GET
-    user: "{{ proxmox_api_user }}"
-    headers:
-      Authorization: "PVEAPIToken={{ proxmox_api_user }}!{{ proxmox_api_token_id }}={{ proxmox_api_token_secret }}"
-    validate_certs: no
-  register: proxmox_storage_api
+- name: Générer clé SSH bastion si absente
+  ansible.builtin.openssh_keypair:
+    path: "{{ bastion_key_path }}"
+    type: ed25519
+    size: 256
+  when: not bastion_key_stat.stat.exists
 
-- name: "Fail si aucun storage détecté"
-  fail:
-    msg: "Impossible de détecter un storage disponible sur Proxmox. Vérifiez vos droits API ou créez un storage (ex: local)."
-  when: proxmox_storage_api.json.data | length == 0
+- name: Charger clé publique bastion
+  slurp:
+    src: "{{ bastion_key_path }}.pub"
+  register: bastion_pub_key
 
-- name: "Debug | Retour API Proxmox storages"
-  debug:
-    var: proxmox_storage_api.json.data
+- set_fact:
+    bastion_ssh_pub: "{{ bastion_pub_key.content | b64decode }}"
 
-- name: "Déterminer le storage par défaut (local ou premier trouvé)"
-  set_fact:
-    proxmox_default_storage: >-
-      {{
-        (proxmox_storage_api.json.data
-        | selectattr('storage', 'match', '^local')
-        | map(attribute='storage')
-        | first)
-        | default(proxmox_storage_api.json.data[0].storage)
-      }}
 
-- name: "Debug | Storage par défaut choisi"
-  debug:
-    var: proxmox_default_storage
 
-- name: "Créer ou mettre à jour les VMs Proxmox"
-  community.general.proxmox_kvm:
-    api_host: "{{ proxmox_api_host }}"
-    api_user: "{{ proxmox_api_user }}"
-    api_token_id: "{{ proxmox_api_token_id }}"
-    api_token_secret: "{{ proxmox_api_token_secret }}"
-    node: "{{ proxmox_node }}"
-    vmid: "{{ item.vmid }}"
-    name: "{{ item.name }}"
-    memory: "{{ item.memory }}"
-    cores: "{{ item.cores }}"
-    sockets: 1
-    # Clone depuis le template si la VM n'existe pas
-    clone: "{{ item.template }}"
-    full: yes
-    storage: "{{ proxmox_default_storage }}"
-    pool: "{{ proxmox_vm_defaults.pool | default(omit) }}"
-    timeout: 900
-    sata:
-      0: "{{ item.disk_size }}"
-    ide:
-      ide2: "{{ proxmox_default_storage }}:cloudinit"
-    net:
-      net0: "{{ item.net0 }}"
-      net1: "{{ item.net1 | default(omit) }}"
-    ipconfig:
-      ipconfig0: "{{ item.ipconfig0 }}"
-      ipconfig1: "{{ item.ipconfig1 | default(omit) }}"
-    tags: "{{ item.tags | default(omit) }}"
-    state: present
-    force: no
+# ==========================================
+# 1. Cloner VM depuis template si absente
+# ==========================================
+- name: Cloner VM depuis template si absente
+  shell: |
+    if [ ! -f "/etc/pve/qemu-server/{{ vm.vmid }}.conf" ]; then
+      qm clone {{ vm.template_vmid }} {{ vm.vmid }} \
+        --name {{ vm.name }} \
+        --full \
+        --storage {{ vm.storage }} \
+        --format qcow2
+    fi
+  args:
+    executable: /bin/bash
   loop: "{{ proxmox_vms }}"
   loop_control:
-    label: "{{ item.name }}"
+    loop_var: vm
+    label: "{{ vm.name }}"
 
-- name: "Debug | Liste des VMs créées ou mises à jour"
-  ansible.builtin.debug:
-    var: proxmox_vms
+# ==========================================
+# 2. Configurer CPU, RAM et OS
+# ==========================================
+- name: Configurer CPU, RAM et OS
+  shell: qm set {{ vm.vmid }} --cores {{ vm.cores }} --memory {{ vm.memory }} --ostype {{ vm.ostype }}
+  loop: "{{ proxmox_vms }}"
+  loop_control:
+    loop_var: vm
+    label: "{{ vm.name }}"
+
+# ==========================================
+# 3. Configurer interfaces réseau
+# ==========================================
+- name: Configurer interfaces réseau
+  shell: |
+    {% for net_name, net_conf in vm.net.items() %}
+    qm set {{ vm.vmid }} --{{ net_name }} {{ net_conf }}
+    {% endfor %}
+  loop: "{{ proxmox_vms }}"
+  loop_control:
+    loop_var: vm
+    label: "{{ vm.name }}"
+
+# ==========================================
+# 4. Configurer Cloud-Init si activé
+# ==========================================
+- name: Ajouter lecteur Cloud-Init si absent
+  shell: |
+    if ! qm config {{ vm.vmid }} | grep -q '^ide2:'; then
+      qm set {{ vm.vmid }} --ide2 {{ vm.storage }}:cloudinit
+    fi
+  args:
+    executable: /bin/bash
+  when: vm.cloudinit | default(false) | bool
+  loop: "{{ proxmox_vms }}"
+  loop_control:
+    loop_var: vm
+    label: "{{ vm.name }}"
+
+- name: Configurer IP avec Cloud-Init
+  shell: |
+    {% for ipconf_name, ipconf_val in vm.ipconfig.items() %}
+    qm set {{ vm.vmid }} --{{ ipconf_name }} {{ ipconf_val }}
+    {% endfor %}
+  when: vm.cloudinit | default(false)
+  loop: "{{ proxmox_vms }}"
+  loop_control:
+    loop_var: vm
+    label: "{{ vm.name }}"
+
+# ==========================================
+# 5. Configurer disque boot
+# ==========================================
+- name: Configurer disque et boot
+  shell: |
+    DISK=$(qm config {{ vm.vmid }} | grep '^scsi0:' | awk -F',' '{print $1}' | awk '{print $2}')
+    if [ -n "$DISK" ]; then
+      qm set {{ vm.vmid }} --scsihw virtio-scsi-pci --scsi0 $DISK --boot c --bootdisk scsi0
+    fi
+  loop: "{{ proxmox_vms }}"
+  loop_control:
+    loop_var: vm
+    label: "{{ vm.name }}"
+
+- name: Démarrer les VMs arrêtées
+  shell: qm start {{ vm.vmid }}
+  args:
+    executable: /bin/bash
+  loop: "{{ proxmox_vms }}"
+  loop_control:
+    loop_var: vm
+    label: "{{ vm.name }}"
+  failed_when: false
+
+
+# ==========================================
+# 7. Appliquer configuration OPNsense via rôle
+# ==========================================
+- name: Appliquer configuration OPNsense
+  include_role:
+    name: opnsense
+  when: vm.template == "opnsense-template"
+  loop: "{{ proxmox_vms }}"
+  loop_control:
+    loop_var: vm
+    label: "{{ vm.name }}"

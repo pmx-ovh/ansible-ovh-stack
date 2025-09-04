@@ -1,4 +1,5 @@
 ---
+# 1. Créer répertoire OpenVPN
 - name: Créer répertoire OpenVPN
   ansible.builtin.file:
     path: /etc/openvpn
@@ -7,43 +8,78 @@
     group: root
     mode: '0700'
 
-- name: Générer certificat CA
+# 2. Générer clé privée CA
+- name: Générer clé privée CA
+  community.crypto.openssl_privatekey:
+    path: /etc/openvpn/ca.key
+    size: 2048
+    type: RSA
+    mode: '0600'
+
+# 3. Générer certificat CA auto-signé
+- name: Générer certificat CA auto-signé
   community.crypto.x509_certificate:
     path: /etc/openvpn/ca.crt
     privatekey_path: /etc/openvpn/ca.key
-    common_name: "VPN-CA"
-    issuer: selfsigned
+    provider: selfsigned
+    subject:
+      common_name: "VPN-CA"
     state: present
-    owner: root
-    group: root
+    mode: '0644'
+
+# 4. Générer clé privée serveur
+- name: Générer clé privée serveur
+  community.crypto.openssl_privatekey:
+    path: /etc/openvpn/server.key
+    size: 2048
+    type: RSA
     mode: '0600'
 
-- name: Générer certificat serveur
+# 5. Générer CSR serveur
+- name: Générer CSR serveur
+  community.crypto.openssl_csr:
+    path: /etc/openvpn/server.csr
+    privatekey_path: /etc/openvpn/server.key
+    common_name: "vpn.server.local"
+
+# 6. Signer certificat serveur avec CA
+- name: Signer certificat serveur
   community.crypto.x509_certificate:
     path: /etc/openvpn/server.crt
-    privatekey_path: /etc/openvpn/server.key
     csr_path: /etc/openvpn/server.csr
-    common_name: "vpn.server.local"
-    issuer_path: /etc/openvpn/ca.crt
-    issuer_key_path: /etc/openvpn/ca.key
+    ownca_path: /etc/openvpn/ca.crt
+    ownca_privatekey_path: /etc/openvpn/ca.key
+    provider: ownca
     state: present
-    owner: root
-    group: root
+    mode: '0644'
+
+# 7. Générer clé privée client
+- name: Générer clé privée client
+  community.crypto.openssl_privatekey:
+    path: "/etc/openvpn/{{ vpn_client_name }}.key"
+    size: 2048
+    type: RSA
     mode: '0600'
 
-- name: Générer certificat client
+# 8. Générer CSR client
+- name: Générer CSR client
+  community.crypto.openssl_csr:
+    path: "/etc/openvpn/{{ vpn_client_name }}.csr"
+    privatekey_path: "/etc/openvpn/{{ vpn_client_name }}.key"
+    common_name: "{{ vpn_client_name }}"
+
+# 9. Signer certificat client avec CA
+- name: Signer certificat client
   community.crypto.x509_certificate:
     path: "/etc/openvpn/{{ vpn_client_name }}.crt"
-    privatekey_path: "/etc/openvpn/{{ vpn_client_name }}.key"
     csr_path: "/etc/openvpn/{{ vpn_client_name }}.csr"
-    common_name: "{{ vpn_client_name }}"
-    issuer_path: /etc/openvpn/ca.crt
-    issuer_key_path: /etc/openvpn/ca.key
+    ownca_path: /etc/openvpn/ca.crt
+    ownca_privatekey_path: /etc/openvpn/ca.key
+    provider: ownca
     state: present
-    owner: root
-    group: root
-    mode: '0600'
+    mode: '0644'
 
+# 10. Générer fichier de configuration client OpenVPN
 - name: Générer fichier de configuration client OpenVPN
   ansible.builtin.template:
     src: client.ovpn.j2
@@ -51,3 +87,10 @@
     owner: root
     group: root
     mode: '0600'
+
+# 11. Rapatrier fichier .ovpn sur la machine locale
+- name: Récupérer fichier de configuration client
+  ansible.builtin.fetch:
+    src: "/etc/openvpn/{{ vpn_client_name }}.ovpn"
+    dest: "/tmp/{{ vpn_client_name }}.ovpn"
+    flat: true

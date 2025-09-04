@@ -1,7 +1,7 @@
 client
 dev tun
-proto {{ vpn_proto }}
-remote {{ vpn_server_ip }} {{ vpn_port }}
+proto udp
+remote {{ vpn_server_address | default('vpn.server.local') }} {{ vpn_server_port | default(1194) }}
 resolv-retry infinite
 nobind
 persist-key
@@ -9,14 +9,16 @@ persist-tun
 remote-cert-tls server
 cipher AES-256-CBC
 auth SHA256
-comp-lzo
 verb 3
+
 <ca>
-{{ lookup('file','/etc/openvpn/ca.crt') }}
+{{ lookup('file', '/etc/openvpn/ca.crt') }}
 </ca>
+
 <cert>
-{{ lookup('file','/etc/openvpn/' + vpn_client_name + '.crt') }}
+{{ lookup('file', '/etc/openvpn/' + vpn_client_name + '.crt') }}
 </cert>
+
 <key>
-{{ lookup('file','/etc/openvpn/' + vpn_client_name + '.key') }}
+{{ lookup('file', '/etc/openvpn/' + vpn_client_name + '.key') }}
 </key>

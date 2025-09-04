@@ -1,18 +1,31 @@
 ---
-# =======================================================
-# Defaults pour proxmox-templates
-# =======================================================
+# ========================================
+# Templates Proxmox
+# ========================================
+proxmox_templates_tmp: "/tmp/proxmox_templates"
+#pmx_storage_path: "/var/lib/vz/images"
+proxmox_templates:
+  - name: debian-cloud-template
+    hostname: debian-cloud-template
+    vmid: 900
+    memory: 1024
+    cores: 1
+    ostype: l26
+    storage: local
+    qcow2_file: debian-12-genericcloud-amd64.qcow2
+    qcow2_url: https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2
+    cloudinit: true   # Debian supporte cloud-init
 
-# === Templates Debian Cloud ===
-debian_template_name: "debian-cloud-template"
-debian_iso_url: "https://cdimage.debian.org/cdimage/cloud/bullseye/latest/debian-11-genericcloud-amd64.qcow2"
-debian_iso_local_path: "/tmp/proxmox_templates/debian-11-genericcloud-amd64.qcow2"
+  - name: opnsense-template
+    hostname: opnsense-template
+    vmid: 901
+    memory: 2048
+    cores: 2
+    ostype: other
+    storage: local
+    qcow2_file: OPNsense-25.7-nano-amd64.img.bz2
+    qcow2_url: https://mirror.ams1.nl.leaseweb.net/opnsense/releases/25.7/OPNsense-25.7-nano-amd64.img.bz2
+    cloudinit: false  # Pas supporté par OPNsense
 
-# === Templates OPNsense ===
-opnsense_template_name: "opnsense-template"
-opnsense_iso_url: "https://mirror.ams1.nl.leaseweb.net/opnsense/releases/25.7/OPNsense-25.7-nano-amd64.img.bz2"
-opnsense_iso_local_path: "/tmp/proxmox_templates/OPNsense-25.7-nano-amd64.img.bz2"
 
-# === Paramètres Proxmox par défaut ===
-proxmox_node: "pve"            # Nom du noeud Proxmox
-proxmox_storage: "local-lvm"    # Storage par défaut pour les templates
+

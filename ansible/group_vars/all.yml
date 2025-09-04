@@ -3,108 +3,150 @@
 # Variables globales pour tous les hôtes
 # ========================================
 
-# === Réseau Proxmox ===
+# Réseau Proxmox
+# ========================================
 prox_bridges:
   - name: vmbr0
-    ip: "213.25.123.15/24"
-    gateway: "213.25.123.254"
+    ip: "192.99.32.41/24"
+    gateway: "192.99.32.254"
     ports: "enp4s0"
   - name: vmbr1
-    ip: "192.168.1.1/24"
+    ip: "192.168.1.254/24"
     ports: "none"
   - name: vmbr2
     ip: "10.10.1.10/24"
     ports: "none"
 
-# Configuration du Proxmox
-proxmox_public_ip: "213.25.123.15"
+# ========================================
+# Config Proxmox
+# ========================================
+proxmox_public_ip: "192.99.32.41"
 proxmox_public_netmask: "255.255.255.0"
-proxmox_gateway: "213.25.123.254"
+proxmox_gateway: "192.99.32.254"
 proxmox_wan_interface: "enp4s0"
-
 proxmox_lan_ip: "192.168.1.254"
 proxmox_lan_netmask: "255.255.255.0"
-
 enable_vmbr2: true
 proxmox_internal_ip: "10.10.1.10"
 proxmox_internal_netmask: "255.255.255.0"
-
 lan_network: "192.168.1.0/24"
-opnsense_wan_bridge: "vmbr1"
 wan_public_iface: "vmbr0"
 
-# ========================
-# Proxmox API & Config
-# ========================
 proxmox_api_host: "ns515276.ip-192-99-32.net"
 proxmox_api_user: "root@pam"
 proxmox_api_token_id: "pmx-ansible"
-proxmox_api_token_secret: "5dbf9cdc-cc07-41ba-8c58-4a0414dc4610"
+proxmox_api_token_secret: "39d387e1-9658-4782-bc33-d215160bf600"
 proxmox_node: "ns515276"
-proxmox_storage: "local-lvm"
+proxmox_storage: "local"
 
-# ========================
+pmx_storage: "local"
+
+ssh_key_path: "{{ (lookup('env', 'SSH_KEY_PATH') | default('~/.ssh/id_rsa_wbx', true)) }}"
+ssh_public_key: "{{ lookup('file', ssh_key_path + '.pub') }}"
+
+
+
+
+# ========================================
 # Cloud-Init defaults
-# ========================
+# ========================================
 cloudinit_user: "admin"
-cloudinit_password: "ChangeMe123!"
-ssh_public_key: "{{ lookup('file','~/.ssh/id_rsa_wbx.pub') }}"
+cloudinit_password: "admin"
+bastion_key_path: "~/.ssh/id_ed25519_bastion"
+bastion_pub_key_content: "{{ lookup('file','~/.ssh/id_ed25519_bastion.pub') }}"
 
-# ========================
+# ========================================
 # VMs à provisionner
-# ========================
+# ========================================
 proxmox_vms:
-  - name: "opnsense"
-    vmid: 106
-    template: "opnsense-template"
-    memory: 2048
+  - name: opnsense
+    template: opnsense-template
+    vmid: 201
     cores: 2
-    disk_size: "8G"
-    net0: "virtio,bridge=vmbr0"
-    net1: "virtio,bridge=vmbr1"
-    ipconfig0: "ip=dhcp"
-    ipconfig1: "ip=192.168.1.2/24"
-    tags: ["firewall"]
-
-  - name: "bastion"
-    vmid: 102
-    template: "debian-cloud-template"
-    memory: 1024
-    cores: 1
-    disk_size: "10G"
-    net0: "virtio,bridge=vmbr1"
-    ipconfig0: "ip=192.168.1.10/24,gw=192.168.1.1"
-    tags: ["bastion"]
-
-  - name: "haproxy"
-    vmid: 103
-    template: "debian-cloud-template"
-    memory: 1024
-    cores: 1
-    disk_size: "10G"
-    net0: "virtio,bridge=vmbr1"
-    ipconfig0: "ip=192.168.1.20/24,gw=192.168.1.1"
-    tags: ["haproxy"]
-
-  - name: "docker-manager"
-    vmid: 104
-    template: "debian-cloud-template"
     memory: 2048
+    storage: local
+    cloudinit: false
+    ostype: other
+    template_vmid: 901
+    net:
+      net0: "virtio,bridge=vmbr1"  # WAN interne Proxmox
+      net1: "virtio,bridge=vmbr2"  # LAN interne pour VMs
+    tags: [firewall]
+
+  - name: bastion
+    template: debian-cloud-template
+    vmid: 200
+    cores: 1
+    memory: 1024
+    storage: local
+    cloudinit: true
+    template_vmid: 900
+    ostype: l26
+    ipconfig:
+      ipconfig0: "ip=192.168.1.10/24,gw=192.168.1.1"
+    net:
+      net0: "virtio,bridge=vmbr1"
+    tags: [bastion]
+
+  - name: haproxy
+    template: debian-cloud-template
+    template_vmid: 900
+    vmid: 202
+    cores: 1
+    memory: 1024
+    storage: local
+    cloudinit: true
+    ostype: l26
+    ipconfig:
+      ipconfig0: "ip=192.168.1.20/24,gw=192.168.1.1"
+    net:
+      net0: "virtio,bridge=vmbr1"
+    tags: [haproxy]
+
+  - name: docker-manager
+    template: debian-cloud-template
+    template_vmid: 900
+    vmid: 203
     cores: 2
-    disk_size: "20G"
-    net0: "virtio,bridge=vmbr1"
-    ipconfig0: "ip=192.168.1.30/24,gw=192.168.1.1"
-    tags: ["docker"]
+    memory: 2048
+    storage: local
+    cloudinit: true
+    ostype: l26
+    ipconfig:
+      ipconfig0: "ip=192.168.1.30/24,gw=192.168.1.1"
+    net:
+      net0: "virtio,bridge=vmbr1"
+    tags: [docker]
+
+
+# ========================================
+# Ansible settings
+# ========================================
+ansible_user: root
+ansible_ssh_private_key_file: "{{ lookup('env','SSH_KEY_PATH') }}"
+ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+ansible_python_interpreter: /usr/bin/python3
 
 # ========================
 # VPN / OPNsense
 # ========================
+opnsense_lan_ip: "192.168.1.1"
 vpn_network: "10.8.0.0/24"
 vpn_clients: ["home-client"]
 vpn_port: "1194"
 vpn_proto: "udp"
 vpn_server_ip: "{{ proxmox_lan_ip }}"
 vpn_client_name: "client1"
+# ========================================
+# Config OPNsense
+# ========================================
+opnsense_lan_subnet: "24"
+opnsense_lan_if: "em1"
+opnsense_wan_if: "em0"
+opnsense_wan_ip: "{{ proxmox_public_ip }}"
+opnsense_wan_gw: "{{ proxmox_lan_ip }}"
+opnsense_wan_bridge: "vmbr1"
+opnsense_root_password: "admin"
 
 # ========================
 # Bastion
@@ -172,8 +214,3 @@ docker_services:
       - "traefik.enable=true"
       - "traefik.http.routers.wordpress.rule=Host(`wordpress.example.com`)"
       - "traefik.http.services.wordpress.loadbalancer.server.port=80"
-
-ansible_user: root
-ansible_ssh_private_key_file: "{{ lookup('env','SSH_KEY_PATH') }}"
-ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
-ansible_python_interpreter: /usr/bin/python3

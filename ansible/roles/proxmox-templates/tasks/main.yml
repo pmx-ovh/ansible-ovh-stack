@@ -1,94 +1,118 @@
 ---
-# =======================================================
-# Role: proxmox-templates
-# Objectif: télécharger et créer les templates Proxmox via API
-# Compatible Ansible 2.18, Proxmox 8.x
-# =======================================================
-
-- name: Créer le dossier temporaire pour les templates
-  ansible.builtin.file:
-    path: /tmp/proxmox_templates
+# ==============================================
+# 1. Créer dossier temporaire pour templates
+# ==============================================
+- name: "Créer dossier temporaire pour les templates"
+  file:
+    path: "{{ proxmox_templates_tmp }}"
     state: directory
     mode: '0755'
 
-- name: Définir la liste des templates à gérer
-  set_fact:
-    templates_to_manage:
-      - name: "{{ debian_template_name }}"
-        iso_url: "{{ debian_iso_url }}"
-        iso_path: "/tmp/proxmox_templates/{{ debian_iso_local_name | default('debian.qcow2') }}"
-        vmid: 900
-        cores: 1
-        memory: 1024
-        ostype: l26
-        scsihw: virtio-scsi-pci
-        storage: "{{ proxmox_storage }}"
-        net:
-          net0: "virtio,bridge=vmbr1"
-
-      - name: "{{ opnsense_template_name }}"
-        iso_url: "{{ opnsense_iso_url }}"
-        iso_path: "/tmp/proxmox_templates/{{ opnsense_iso_local_name | default('opnsense.img.bz2') }}"
-        vmid: 901
-        cores: 2
-        memory: 2048
-        ostype: other
-        scsihw: virtio-scsi-pci
-        storage: "{{ proxmox_storage }}"
-        net:
-          net0: "virtio,bridge=vmbr0"
-          net1: "virtio,bridge=vmbr1"
-
-- name: Vérifier si les fichiers ISO existent déjà
-  ansible.builtin.stat:
-    path: "{{ item.iso_path }}"
-  loop: "{{ templates_to_manage }}"
-  loop_control:
-    label: "{{ item.name }}"
-  register: iso_check
-
-- name: Télécharger les templates si absents
+# ==============================================
+# 2. Télécharger les templates directement sur Proxmox
+# ==============================================
+- name: "Télécharger chaque template si absent"
   ansible.builtin.get_url:
-    url: "{{ item.0.iso_url }}"
-    dest: "{{ item.0.iso_path }}"
+    url: "{{ item.qcow2_url }}"
+    dest: "{{ proxmox_templates_tmp }}/{{ item.qcow2_file }}"
     mode: '0644'
-    force: no
-  loop: "{{ templates_to_manage | zip(iso_check.results) | list }}"
-  loop_control:
-    label: "{{ item.0.name }}"
-  when: not item.1.stat.exists
-
-- name: Créer VM pour template si elle n'existe pas
-  community.general.proxmox_kvm:
-    api_user: "{{ proxmox_api_user }}"
-    api_token_id: "{{ proxmox_api_token_id }}"
-    api_token_secret: "{{ proxmox_api_token_secret }}"
-    api_host: "{{ proxmox_api_host }}"
-    node: "{{ proxmox_node }}"
-    vmid: "{{ item.vmid }}"
-    name: "{{ item.name }}"
-    cores: "{{ item.cores }}"
-    memory: "{{ item.memory }}"
-    ostype: "{{ item.ostype }}"
-    scsihw: "{{ item.scsihw }}"
-    storage: "{{ item.storage }}"
-    net: "{{ item.net }}"
-    state: present
-  loop: "{{ templates_to_manage }}"
+  loop: "{{ proxmox_templates }}"
   loop_control:
     label: "{{ item.name }}"
-  register: created_vms
 
-- name: Transformer la VM en template
-  community.general.proxmox_kvm:
-    api_user: "{{ proxmox_api_user }}"
-    api_token_id: "{{ proxmox_api_token_id }}"
-    api_token_secret: "{{ proxmox_api_token_secret }}"
-    api_host: "{{ proxmox_api_host }}"
-    node: "{{ proxmox_node }}"
-    vmid: "{{ item.vmid }}"
-    template: true
-    state: present
-  loop: "{{ templates_to_manage }}"
+# ==============================================
+# 3. Décompresser .bz2 si nécessaire
+# ==============================================
+- name: "Décompresser les images .bz2 si nécessaire"
+  command: >
+    bzip2 -dk {{ proxmox_templates_tmp }}/{{ item.qcow2_file }}
+  args:
+    creates: "{{ proxmox_templates_tmp }}/{{ item.qcow2_file | regex_replace('\\.bz2$', '') }}"
+  when: item.qcow2_file is search('.bz2$')
+  loop: "{{ proxmox_templates }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# ==============================================
+# 4. Créer VM pour template si absente
+# ==============================================
+- name: "Créer VM pour template si elle n'existe pas déjà"
+  command: >
+    qm create {{ item.vmid }}
+      --name {{ item.hostname }}
+      --memory {{ item.memory }}
+      --cores {{ item.cores }}
+      --ostype {{ item.ostype }}
+      --net0 virtio,bridge=vmbr0
+      --scsihw virtio-scsi-pci
+      --onboot 1
+  args:
+    creates: "/etc/pve/nodes/{{ proxmox_node }}/qemu-server/{{ item.vmid }}.conf"
+  loop: "{{ proxmox_templates }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# ==============================================
+# 5. Importer disque système et attacher en scsi0
+# ==============================================
+- name: "Importer disque système et attacher en scsi0"
+  shell: |
+    qm importdisk {{ item.vmid }} \
+      {{ proxmox_templates_tmp }}/{{ item.qcow2_file | regex_replace('\.bz2$|\.gz$','') }} \
+      {{ item.storage }}
+  args:
+    creates: "/var/lib/vz/images/{{ item.vmid }}"
+  loop: "{{ proxmox_templates }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# ==============================================
+# 6. Configurer disque importé comme bootdisk
+# ==============================================
+- name: "Configurer disque importé comme bootdisk"
+  shell: |
+    DISK=$(ls /var/lib/vz/images/{{ item.vmid }}/ | grep -E '\.(raw|qcow2|img)$')
+    qm set {{ item.vmid }} \
+      --scsihw virtio-scsi-pci \
+      --scsi0 {{ item.storage }}:{{ item.vmid }}/$DISK \
+      --bootdisk scsi0 \
+      --boot "order=scsi0"
+  args:
+    executable: /bin/bash
+  loop: "{{ proxmox_templates }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# ==============================================
+# 7. Définir mot de passe root OPNsense (sans Cloud-Init)
+# ==============================================
+#- name: Définir mot de passe root OPNsense
+#  include_tasks: opnsense-template.yml
+
+# ==============================================
+# 8. Ajouter disque Cloud-Init (uniquement Debian)
+# ==============================================
+- name: "Ajouter disque Cloud-Init pour les templates compatibles"
+  command: >
+    qm set {{ item.vmid }}
+      --ide2 {{ item.storage }}:cloudinit
+      --ciuser {{ cloudinit_user }}
+      --cipassword {{ cloudinit_password }}
+      --sshkeys "{{ bastion_key_path }}.pub"
+      --citype nocloud
+  when: item.cloudinit | default(false)
+  loop: "{{ proxmox_templates }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+# ==============================================
+# 9. Convertir VM en template
+# ==============================================
+- name: "Convertir VM en template"
+  command: >
+    qm template {{ item.vmid }}
+  args:
+    creates: "/etc/pve/nodes/{{ proxmox_node }}/qemu-server/{{ item.vmid }}.conf"
+  loop: "{{ proxmox_templates }}"
   loop_control:
     label: "{{ item.name }}"

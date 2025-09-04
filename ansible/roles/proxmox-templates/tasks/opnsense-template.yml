@@ -1,0 +1,74 @@
+---
+# ==============================================
+# Définir mot de passe root et config réseau OPNsense via console série
+# ==============================================
+
+- name: "Ajouter console série et VGA pour OPNsense"
+  shell: qm set {{ item.vmid }} --serial0 socket --vga serial0
+  loop: "{{ proxmox_templates }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.hostname == "opnsense-template"
+
+- name: "Démarrer OPNsense si arrêtée"
+  shell: qm start {{ item.vmid }}
+  loop: "{{ proxmox_templates }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: item.hostname == "opnsense-template"
+
+- name: "Configurer OPNsense via console série (mot de passe + réseau)"
+  shell: |
+    /usr/bin/expect <<'EOF'
+    set timeout 300
+    spawn socat -,raw,echo=0,escape=0x1d unix-connect:/var/run/qemu-server/{{ item.vmid }}.serial0
+
+    # Login root
+    expect "login:"
+    send "root\r"
+    expect "Password:"
+    send "opnsense\r"
+    expect "#"
+
+    # Changer mot de passe root
+    send "passwd\r"
+    expect "New password:"
+    send "{{ opnsense_root_password }}\r"
+    expect "Retype new password:"
+    send "{{ opnsense_root_password }}\r"
+    expect "#"
+
+    # Configurer les interfaces via menu assign
+    send "assign\r"
+    expect "Do you want to configure VLANs?"
+    send "n\r"
+    expect "Enter the LAN interface"
+    send "{{ opnsense_lan_if }}\r"
+    expect "Enter the WAN interface"
+    send "{{ opnsense_wan_if }}\r"
+    expect "#"
+
+    # Définir IP LAN
+    send "ifconfig {{ opnsense_lan_if }} {{ opnsense_lan_ip }}/{{ opnsense_lan_subnet }}\r"
+    expect "#"
+
+    # Définir gateway WAN
+    send "route add default {{ opnsense_wan_gw }}\r"
+    expect "#"
+
+    send "exit\r"
+    expect eof
+    EOF
+  args:
+    executable: /bin/bash
+  register: expect_result
+  until: expect_result.rc == 0
+  retries: 5
+  delay: 15
+  delegate_to: proxmox1
+  loop: "{{ proxmox_templates }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - item.hostname == "opnsense-template"
+    - not (item.cloudinit | default(false) | bool)

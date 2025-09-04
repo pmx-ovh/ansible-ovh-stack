@@ -1,22 +1,27 @@
 <opnsense>
   <system>
-    <hostname>fw1</hostname>
-    <domain>local</domain>
-    <timezone>Europe/Paris</timezone>
+    <hostname>{{ opnsense_hostname }}</hostname>
+    <domain>{{ opnsense_domain }}</domain>
+    <timezone>{{ opnsense_timezone }}</timezone>
+    <user>
+      <name>root</name>
+      <password>{{ opnsense_root_password | password_hash('sha512') }}</password>
+    </user>
   </system>
 
   <interfaces>
     <lan>
-      <if>em1</if>
-      <ipaddr>{{ proxmox_lan_ip }}</ipaddr>
-      <subnet>24</subnet>
+      <if>{{ opnsense_lan_if }}</if>
+      <ipaddr>{{ opnsense_lan_ip }}</ipaddr>
+      <subnet>{{ opnsense_lan_subnet }}</subnet>
     </lan>
     <wan>
-      <if>em0</if>
-      <ipaddr>dhcp</ipaddr>
+      <if>{{ opnsense_wan_if }}</if>
+      <ipaddr>{{ opnsense_wan_ip }}</ipaddr>
     </wan>
   </interfaces>
 
+  {% if vpn_enabled %}
   <openvpn>
     <server>
       <vpnid>1</vpnid>
@@ -36,4 +41,5 @@
       <action>pass</action>
     </rule>
   </firewall>
+  {% endif %}
 </opnsense>

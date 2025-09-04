@@ -6,7 +6,6 @@
   hosts: localhost
   connection: local
   gather_facts: false
-  tags: [install]
   tasks:
     - name: Message pré-install
       ansible.builtin.debug:
@@ -18,34 +17,42 @@
       changed_when: false
 
 # --- 1) Upload / Vérification templates Proxmox ---
+- name: Installation des pré-requis sur Proxmox
+  hosts: proxmox
+  become: true
+  gather_facts: false
+  tags: [install]
+  #tags: [install, templates]
+  roles:
+    - role: proxmox-host
+#    - role: proxmox-templates
+# --- 1) Upload / Vérification templates Proxmox ---
 - name: Upload / Vérification templates Proxmox
-  hosts: localhost
-  connection: local
+  hosts: proxmox
   become: true
   gather_facts: false
   tags: [templates]
   roles:
-    - role: proxmox-templates   # <-- rôle dédié aux templates
+    - role: proxmox-templates
 
 # --- 2) Configuration réseau Proxmox et bridges ---
 - name: Config réseau et bridges Proxmox
   hosts: proxmox
   become: true
   gather_facts: true
-  tags: [network, templates]
+  tags: [network]
   roles:
     - role: proxmox-host
-      tags: [network, templates]
+      tags: [network]
 
 # --- 3) Provision VMs Proxmox via API ---
 - name: Provision VMs Proxmox (cloud-init)
-  hosts: localhost
-  connection: local
+  hosts: proxmox
   become: true
   gather_facts: false
   tags: [provision]
   roles:
-    - role: proxmox-vm          # <-- rôle uniquement pour VMs clonées
+    - role: proxmox-vm          # rôle dédié au clonage / configuration VM
       tags: [provision]
 
 # --- 4) Déploiement Bastion ---
@@ -58,9 +65,9 @@
     - role: bastion
       tags: [bastion]
 
-# --- 5) Déploiement OPNsense (firewall, VPN) ---
-- name: Déployer OPNsense (config + VPN)
-  hosts: opnsense_group
+# --- 5) Déploiement OPNsense (firewall + VPN) ---
+- name: Déployer OPNsense
+  hosts: proxmox
   become: true
   gather_facts: true
   tags: [opnsense, vpn]
@@ -80,7 +87,7 @@
     - role: haproxy
       tags: [haproxy]
 
-# --- 7) Déploiement services Docker (Traefik, Portainer, Wordpress) ---
+# --- 7) Déploiement services Docker ---
 - name: Déployer services Docker
   hosts: services_group
   become: true
